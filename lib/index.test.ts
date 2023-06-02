@@ -1,16 +1,17 @@
-import { assert, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import { Parser } from ".";
 
 // todo: test quoting (special characters, escapes etc)
 
 test("basic", async () => {
-  const pl = `
+  const pl1 = `
     <?xml something something ?>
-    <RootTag attr1="test" attr2>
-      <ChildTag />
-      <ChildTag />
-    </RootTag>
-  `;
+    <RootTag attr1="test" attr2`;
+
+  const pl2 = ` attr3="test3">
+    <ChildTag />
+    <ChildTag />
+  </RootTag>`;
 
   const rootMock = vi.fn();
   const childMock = vi.fn();
@@ -21,7 +22,8 @@ test("basic", async () => {
   });
   p.addCallback("ChildTag", childMock);
 
-  await new Promise((r) => p.write(Buffer.from(pl), r));
+  await new Promise((r) => p.write(Buffer.from(pl1), r));
+  await new Promise((r) => p.write(Buffer.from(pl2), r));
   p.end();
 
   expect(rootMock).toBeCalledTimes(1);

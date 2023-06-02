@@ -23,7 +23,11 @@ type State =
   | { type: "OPENING"; startPos: number }
   | { type: "COMMENT"; typeChar: number }
   | { type: "TAGNAME"; startPos: number }
-  | { type: "ATTRIBUTES"; tagNameStart: number; tagNameEnd: number }
+  | {
+      type: "ATTRIBUTES";
+      tagNameStart: number;
+      tagNameEnd: number;
+    }
   | { type: "CLOSING"; tagNameStart: number };
 
 type AttrState =
@@ -32,18 +36,24 @@ type AttrState =
   | { type: "VALUE"; startPos: number }
   | { type: "QUOTED_VALUE"; startPos: number };
 
+const BUFFER_SIZE = 131072;
+
 export class Parser extends Writable {
   #callbacks: Callback[] = [];
-  #buffer: Buffer = Buffer.alloc(4096);
-  #bufferPos: number = 0; // position of the next character added
+  #buffer: Buffer = Buffer.alloc(BUFFER_SIZE);
+  /** position of the end of usable bytes */
+  #bufferPos: number = 0;
   #state: State = { type: "INIT" };
+  /** Position of leftmost character we still care about */
+  #resetPos: number = 0;
+  #attributeEndPos: number = 0;
 
   constructor() {
     super();
   }
 
   private setState(newState: State) {
-    console.debug(newState);
+    // console.log(newState);
     this.#state = newState;
   }
 
@@ -60,19 +70,33 @@ export class Parser extends Writable {
     encoding: BufferEncoding,
     next: (error?: Error | null | undefined) => void
   ): void {
+    // console.log("WRITE", {
+    //   resetPos: this.#resetPos,
+    //   bufferPos: this.#bufferPos,
+    //   length: chunk.length,
+    // });
     const buffer = Buffer.from(chunk);
+    // truncate working buffer if new buffer does not fit
+    if (buffer.length + this.#bufferPos > this.#buffer.length) {
+      // console.log("Trimming buffer to make space");
+      this.#buffer.copy(this.#buffer, 0, this.#resetPos, this.#bufferPos);
+      this.#bufferPos = this.#bufferPos - this.#resetPos;
+    }
 
-    for (let i = 0; i < buffer.length; i++) {
-      const char = buffer[i];
-      const lastChar = this.#buffer[this.#bufferPos - 1] ?? 0;
-      let reset;
+    const localStart = this.#bufferPos;
+    buffer.copy(this.#buffer, this.#bufferPos);
+    this.#bufferPos += buffer.length;
+
+    for (let i = localStart; i < this.#bufferPos; i++) {
+      const char = this.#buffer[i];
+      const lastChar = this.#buffer[i - 1] ?? 0;
 
       switch (this.#state.type) {
         case "INIT": {
           if (char === TAG_START) {
             this.setState({
               type: "OPENING",
-              startPos: this.#bufferPos - 1, // todo: is this used?
+              startPos: i - 1, // todo: is this used?
             });
           }
           break;
@@ -88,12 +112,12 @@ export class Parser extends Writable {
           } else if (char === TAG_CLOSE) {
             this.setState({
               type: "CLOSING",
-              tagNameStart: this.#bufferPos + 1,
+              tagNameStart: i + 1,
             });
           } else {
             this.setState({
               type: "TAGNAME",
-              startPos: this.#bufferPos,
+              startPos: i,
             });
           }
           break;
@@ -101,7 +125,7 @@ export class Parser extends Writable {
         case "COMMENT": {
           if (char === TAG_END && lastChar === this.#state.typeChar) {
             this.setState({ type: "INIT" });
-            reset = true;
+            this.#resetPos = i + 1;
           }
           break;
         }
@@ -109,33 +133,27 @@ export class Parser extends Writable {
           if (char === BLANK) {
             this.setState({
               type: "ATTRIBUTES",
-              tagNameEnd: this.#bufferPos, // before the blank
+              tagNameEnd: i, // before the blank
               tagNameStart: this.#state.startPos,
             });
           } else if (char === TAG_END) {
-            reset = true;
+            this.#resetPos = i + 1;
             const selfClosing = lastChar === TAG_CLOSE;
-            const endPos = this.#bufferPos - (selfClosing ? 3 : 2);
-            this.doTagEnd(
-              this.#state.startPos,
-              endPos,
-              endPos,
-              true,
-              selfClosing
-            );
+            const endPos = i - (selfClosing ? 3 : 2);
+            this.#attributeEndPos = endPos;
+            this.doTagEnd(this.#state.startPos, endPos, true, selfClosing);
             this.setState({ type: "INIT" });
           }
           break;
         }
         case "ATTRIBUTES": {
           if (char === TAG_END) {
-            reset = true;
+            this.#resetPos = i + 1;
             const selfClosing = lastChar === TAG_CLOSE;
-            const endPos = this.#bufferPos - (selfClosing ? 3 : 2);
+            this.#attributeEndPos = i - (selfClosing ? 2 : 1);
             this.doTagEnd(
               this.#state.tagNameStart,
               this.#state.tagNameEnd,
-              endPos,
               true,
               selfClosing
             );
@@ -145,25 +163,13 @@ export class Parser extends Writable {
         }
         case "CLOSING": {
           if (char === TAG_END) {
-            reset = true;
-            this.doTagEnd(
-              this.#state.tagNameStart,
-              this.#bufferPos,
-              this.#bufferPos,
-              false,
-              true
-            );
+            this.#resetPos = i + 1;
+            this.#attributeEndPos = i;
+            this.doTagEnd(this.#state.tagNameStart, i, false, true);
             this.setState({ type: "INIT" });
           }
           break;
         }
-      }
-
-      if (!reset) {
-        this.#buffer[this.#bufferPos] = char;
-        this.#bufferPos++;
-      } else {
-        this.#bufferPos = 0;
       }
     }
 
@@ -183,7 +189,9 @@ export class Parser extends Writable {
     /** last parsed name */
     let name = "";
 
-    for (let i = this.#state.tagNameEnd + 1; i < this.#bufferPos; i++) {
+    // console.log("Attr end:", this.#attributeEndPos);
+
+    for (let i = this.#state.tagNameEnd + 1; i <= this.#attributeEndPos; i++) {
       const char = this.#buffer[i];
 
       switch (state.type) {
@@ -236,14 +244,14 @@ export class Parser extends Writable {
       case "NAME": {
         // boolean attribute
         const attrName = this.#buffer
-          .subarray(state.startPos, this.#bufferPos)
+          .subarray(state.startPos, this.#attributeEndPos + 1)
           .toString();
         attrs[attrName] = true;
         break;
       }
       case "VALUE": {
         const value = this.#buffer
-          .subarray(state.startPos, this.#bufferPos)
+          .subarray(state.startPos, this.#attributeEndPos + 1)
           .toString();
         attrs[name] = value;
         break;
@@ -260,15 +268,17 @@ export class Parser extends Writable {
   private doTagEnd(
     nameStart: number,
     nameEnd: number,
-    attributesEnd: number,
     enter: boolean,
     exit: boolean
   ) {
-    const tagName = this.#buffer.slice(nameStart, nameEnd);
-    console.log("tagEnd", { buf: tagName.toString() });
+    const tagName = this.#buffer.subarray(nameStart, nameEnd);
+    // console.log("Tag end:", { enter, exit }, `"${tagName.toString()}"`);
     for (const cb of this.#callbacks) {
       if (
-        Buffer.compare(this.#buffer.slice(nameStart, nameEnd), cb.tagName) === 0
+        Buffer.compare(
+          this.#buffer.subarray(nameStart, nameEnd),
+          cb.tagName
+        ) === 0
       ) {
         if (enter) {
           cb.enter();
