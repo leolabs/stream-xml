@@ -15,10 +15,6 @@ const QUESTION = "?".charCodeAt(0);
 const BANG = "!".charCodeAt(0);
 const BLANK = " ".charCodeAt(0); // todo: consider all whitespace
 
-const exhaustiveMatchingGuard = (_: never): never => {
-  throw new Error("Should not have reached here");
-};
-
 type State =
   | { type: "INIT" }
   | { type: "OPENING"; startPos: number }
