@@ -1,0 +1,11 @@
+{
+  "name": "stream-xml",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.2.5",
+    "typescript": "^5.1.3",
+    "vitest": "^0.31.4"
+  }
+}
