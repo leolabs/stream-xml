@@ -14,6 +14,9 @@ const TAG_CLOSE = "/".charCodeAt(0);
 const QUESTION = "?".charCodeAt(0);
 const BANG = "!".charCodeAt(0);
 const BLANK = " ".charCodeAt(0); // todo: consider all whitespace
+const EQUAL = "=".charCodeAt(0);
+const QUOTE = `"`.charCodeAt(0);
+const BACKSLASH = "\\".charCodeAt(0);
 
 type State =
   | { type: "INIT" }
@@ -22,6 +25,12 @@ type State =
   | { type: "TAGNAME"; startPos: number }
   | { type: "ATTRIBUTES"; tagNameStart: number; tagNameEnd: number }
   | { type: "CLOSING"; tagNameStart: number };
+
+type AttrState =
+  | { type: "INIT" }
+  | { type: "NAME"; startPos: number }
+  | { type: "VALUE"; startPos: number }
+  | { type: "QUOTED_VALUE"; startPos: number };
 
 export class Parser extends Writable {
   #callbacks: Callback[] = [];
@@ -159,6 +168,93 @@ export class Parser extends Writable {
     }
 
     next();
+  }
+
+  attributes(): Record<string, string | boolean> | null {
+    if (this.#state.type !== "ATTRIBUTES") {
+      return null;
+    }
+
+    let state: AttrState = { type: "INIT" };
+
+    // parse attributes into object
+    const attrs = {} as Record<string, string | boolean>;
+
+    /** last parsed name */
+    let name = "";
+
+    for (let i = this.#state.tagNameEnd + 1; i < this.#bufferPos; i++) {
+      const char = this.#buffer[i];
+
+      switch (state.type) {
+        case "INIT": {
+          if (char !== BLANK) {
+            state = { type: "NAME", startPos: i };
+          }
+          break;
+        }
+        case "NAME": {
+          if (char === BLANK) {
+            // boolean attribute
+            const attrName = this.#buffer
+              .subarray(state.startPos, i)
+              .toString();
+            attrs[attrName] = true;
+            state = { type: "INIT" };
+          } else if (char === EQUAL) {
+            name = this.#buffer.subarray(state.startPos, i).toString();
+            state = { type: "VALUE", startPos: i + 1 };
+          }
+          break;
+        }
+        case "VALUE": {
+          if (i === state.startPos && char === QUOTE) {
+            state = { type: "QUOTED_VALUE", startPos: i + 1 };
+          } else if (char === BLANK) {
+            const value = this.#buffer.subarray(state.startPos, i).toString();
+            attrs[name] = value;
+            state = { type: "INIT" };
+          }
+          break;
+        }
+        case "QUOTED_VALUE": {
+          if (char === QUOTE && this.#buffer[i - 1] !== BACKSLASH) {
+            const value = this.#buffer.subarray(state.startPos, i).toString();
+            attrs[name] = value;
+            state = { type: "INIT" };
+          }
+          break;
+        }
+      }
+    }
+
+    // final
+    switch (state.type) {
+      case "INIT": {
+        break;
+      }
+      case "NAME": {
+        // boolean attribute
+        const attrName = this.#buffer
+          .subarray(state.startPos, this.#bufferPos)
+          .toString();
+        attrs[attrName] = true;
+        break;
+      }
+      case "VALUE": {
+        const value = this.#buffer
+          .subarray(state.startPos, this.#bufferPos)
+          .toString();
+        attrs[name] = value;
+        break;
+      }
+      case "QUOTED_VALUE": {
+        // error case
+        break;
+      }
+    }
+
+    return attrs;
   }
 
   private doTagEnd(
