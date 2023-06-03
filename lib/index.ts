@@ -18,20 +18,29 @@ const EQUAL = "=".charCodeAt(0);
 const QUOTE = `"`.charCodeAt(0);
 const BACKSLASH = "\\".charCodeAt(0);
 
+enum StateType {
+  Init = 1,
+  Opening = 2,
+  Comment = 3,
+  TagName = 4,
+  Attributes = 5,
+  Closing = 6,
+}
+
 type State =
-  | { type: "INIT" }
-  | { type: "OPENING"; startPos: number }
-  | { type: "COMMENT"; typeChar: number }
-  | { type: "TAGNAME"; startPos: number }
+  | { type: StateType.Init }
+  | { type: StateType.Opening; startPos: number }
+  | { type: StateType.Comment; typeChar: number }
+  | { type: StateType.TagName; startPos: number }
   | {
-      type: "ATTRIBUTES";
+      type: StateType.Attributes;
       tagNameStart: number;
       tagNameEnd: number;
     }
-  | { type: "CLOSING"; tagNameStart: number };
+  | { type: StateType.Closing; tagNameStart: number };
 
 type AttrState =
-  | { type: "INIT" }
+  | { type: StateType.Init }
   | { type: "NAME"; startPos: number }
   | { type: "VALUE"; startPos: number }
   | { type: "QUOTED_VALUE"; startPos: number };
@@ -43,7 +52,7 @@ export class Parser extends Writable {
   #buffer: Buffer = Buffer.alloc(BUFFER_SIZE);
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
-  #state: State = { type: "INIT" };
+  #state: State = { type: StateType.Init };
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
   #attributeEndPos: number = 0;
@@ -92,47 +101,47 @@ export class Parser extends Writable {
       const lastChar = this.#buffer[i - 1] ?? 0;
 
       switch (this.#state.type) {
-        case "INIT": {
+        case StateType.Init: {
           if (char === TAG_START) {
             this.setState({
-              type: "OPENING",
+              type: StateType.Opening,
               startPos: i - 1, // todo: is this used?
             });
           }
           break;
         }
-        case "OPENING": {
+        case StateType.Opening: {
           if (char === BLANK) {
             // ignore
           } else if (char === QUESTION || char === BANG) {
             this.setState({
-              type: "COMMENT",
+              type: StateType.Comment,
               typeChar: char,
             });
           } else if (char === TAG_CLOSE) {
             this.setState({
-              type: "CLOSING",
+              type: StateType.Closing,
               tagNameStart: i + 1,
             });
           } else {
             this.setState({
-              type: "TAGNAME",
+              type: StateType.TagName,
               startPos: i,
             });
           }
           break;
         }
-        case "COMMENT": {
+        case StateType.Comment: {
           if (char === TAG_END && lastChar === this.#state.typeChar) {
-            this.setState({ type: "INIT" });
+            this.setState({ type: StateType.Init });
             this.#resetPos = i + 1;
           }
           break;
         }
-        case "TAGNAME": {
+        case StateType.TagName: {
           if (char === BLANK) {
             this.setState({
-              type: "ATTRIBUTES",
+              type: StateType.Attributes,
               tagNameEnd: i, // before the blank
               tagNameStart: this.#state.startPos,
             });
@@ -142,11 +151,11 @@ export class Parser extends Writable {
             const endPos = i - (selfClosing ? 3 : 2);
             this.#attributeEndPos = endPos;
             this.doTagEnd(this.#state.startPos, endPos, true, selfClosing);
-            this.setState({ type: "INIT" });
+            this.setState({ type: StateType.Init });
           }
           break;
         }
-        case "ATTRIBUTES": {
+        case StateType.Attributes: {
           if (char === TAG_END) {
             this.#resetPos = i + 1;
             const selfClosing = lastChar === TAG_CLOSE;
@@ -157,16 +166,16 @@ export class Parser extends Writable {
               true,
               selfClosing
             );
-            this.setState({ type: "INIT" });
+            this.setState({ type: StateType.Init });
           }
           break;
         }
-        case "CLOSING": {
+        case StateType.Closing: {
           if (char === TAG_END) {
             this.#resetPos = i + 1;
             this.#attributeEndPos = i;
             this.doTagEnd(this.#state.tagNameStart, i, false, true);
-            this.setState({ type: "INIT" });
+            this.setState({ type: StateType.Init });
           }
           break;
         }
@@ -177,11 +186,11 @@ export class Parser extends Writable {
   }
 
   attributes(): Record<string, string | boolean> | null {
-    if (this.#state.type !== "ATTRIBUTES") {
+    if (this.#state.type !== StateType.Attributes) {
       return null;
     }
 
-    let state: AttrState = { type: "INIT" };
+    let state: AttrState = { type: StateType.Init };
 
     // parse attributes into object
     const attrs = {} as Record<string, string | boolean>;
@@ -195,7 +204,7 @@ export class Parser extends Writable {
       const char = this.#buffer[i];
 
       switch (state.type) {
-        case "INIT": {
+        case StateType.Init: {
           if (char !== BLANK) {
             state = { type: "NAME", startPos: i };
           }
@@ -208,7 +217,7 @@ export class Parser extends Writable {
               .subarray(state.startPos, i)
               .toString();
             attrs[attrName] = true;
-            state = { type: "INIT" };
+            state = { type: StateType.Init };
           } else if (char === EQUAL) {
             name = this.#buffer.subarray(state.startPos, i).toString();
             state = { type: "VALUE", startPos: i + 1 };
@@ -221,7 +230,7 @@ export class Parser extends Writable {
           } else if (char === BLANK) {
             const value = this.#buffer.subarray(state.startPos, i).toString();
             attrs[name] = value;
-            state = { type: "INIT" };
+            state = { type: StateType.Init };
           }
           break;
         }
@@ -229,7 +238,7 @@ export class Parser extends Writable {
           if (char === QUOTE && this.#buffer[i - 1] !== BACKSLASH) {
             const value = this.#buffer.subarray(state.startPos, i).toString();
             attrs[name] = value;
-            state = { type: "INIT" };
+            state = { type: StateType.Init };
           }
           break;
         }
@@ -238,7 +247,7 @@ export class Parser extends Writable {
 
     // final
     switch (state.type) {
-      case "INIT": {
+      case StateType.Init: {
         break;
       }
       case "NAME": {
