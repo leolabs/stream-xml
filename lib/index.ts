@@ -21,7 +21,8 @@ const EQUAL = "=".charCodeAt(0);
 const QUOTE = `"`.charCodeAt(0);
 const BACKSLASH = "\\".charCodeAt(0);
 
-const WHITESPACE = new Set([BLANK, TAB, RETURN, NEWLINE]);
+const isWhitespace = (char: number) =>
+  char === BLANK || char === TAB || char === RETURN || char === NEWLINE;
 
 enum StateType {
   Init = 1, // no args
@@ -107,7 +108,7 @@ export class Parser extends Writable {
           break;
         }
         case StateType.Opening: {
-          if (WHITESPACE.has(char)) {
+          if (isWhitespace(char)) {
             // ignore
           } else if (char === QUESTION || char === BANG) {
             this.setState(StateType.Comment);
@@ -129,7 +130,7 @@ export class Parser extends Writable {
           break;
         }
         case StateType.TagName: {
-          if (WHITESPACE.has(char)) {
+          if (isWhitespace(char)) {
             this.setState(StateType.Attributes);
             this.#stateEndPos = i;
           } else if (char === TAG_END) {
@@ -192,13 +193,13 @@ export class Parser extends Writable {
 
       switch (state.type) {
         case StateType.Init: {
-          if (!WHITESPACE.has(char)) {
+          if (!isWhitespace(char)) {
             state = { type: "NAME", startPos: i };
           }
           break;
         }
         case "NAME": {
-          if (WHITESPACE.has(char)) {
+          if (isWhitespace(char)) {
             // boolean attribute
             const attrName = this.#buffer
               .subarray(state.startPos, i)
@@ -214,7 +215,7 @@ export class Parser extends Writable {
         case "VALUE": {
           if (i === state.startPos && char === QUOTE) {
             state = { type: "QUOTED_VALUE", startPos: i + 1 };
-          } else if (WHITESPACE.has(char)) {
+          } else if (isWhitespace(char)) {
             const value = this.#buffer.subarray(state.startPos, i).toString();
             attrs[name] = value;
             state = { type: StateType.Init };
