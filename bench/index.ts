@@ -2,12 +2,14 @@ import b from "benny";
 import { join } from "path";
 import { cwd } from "process";
 import { createReadStream } from "fs";
+import { readFile } from "fs/promises";
+
+import sax from "sax";
 import { SaxPushParser, parseXml } from "libxmljs2";
 import { X2jOptionsOptional, XMLParser } from "fast-xml-parser";
-import sax from "sax";
+import XmlStreamParser from "node-xml-stream";
 
 import { Parser } from "../lib";
-import { readFile } from "fs/promises";
 
 const main = async () => {
   for (const fileName of ["small.xml", "medium.xml", "semi-large.xml"]) {
@@ -20,6 +22,12 @@ const main = async () => {
         const parser = new Parser();
         stream.pipe(parser);
         return new Promise((res) => stream.on("end", res));
+      }),
+      b.add("node-xml-stream", async () => {
+        const stream = createReadStream(filePath);
+        const parser = new XmlStreamParser();
+        stream.pipe(parser);
+        return new Promise((res) => parser.on("finish", res));
       }),
       b.add("stream-xml without stream", async () => {
         const file = await readFile(filePath);
