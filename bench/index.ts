@@ -1,5 +1,6 @@
 import b from "benny";
 import { join } from "path";
+import { cwd } from "process";
 import { createReadStream } from "fs";
 import { SaxPushParser, parseXml } from "libxmljs2";
 import { X2jOptionsOptional, XMLParser } from "fast-xml-parser";
@@ -10,7 +11,7 @@ import { readFile } from "fs/promises";
 
 const main = async () => {
   for (const fileName of ["small.xml", "medium.xml", "semi-large.xml"]) {
-    const filePath = join(__dirname, fileName);
+    const filePath = join(cwd(), "bench", fileName);
 
     await b.suite(
       `XML parsing (${fileName})`,

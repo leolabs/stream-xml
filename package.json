@@ -15,7 +15,8 @@
     "vitest": "^0.31.4"
   },
   "scripts": {
-    "bench": "ts-node bench/index.ts",
+    "build": "rm -rf dist && tsc",
+    "bench": "yarn --silent build && node dist/bench/index.js",
     "test": "vitest"
   },
   "dependencies": {
