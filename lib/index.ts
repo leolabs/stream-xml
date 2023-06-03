@@ -82,12 +82,15 @@ export class Parser extends Writable {
     //   length: chunk.length,
     // });
     const buffer = Buffer.from(chunk);
+
     // truncate working buffer if new buffer does not fit
     if (this.#bufferPos + buffer.length > this.#buffer.length) {
-      if (this.#resetPos + buffer.length > this.#buffer.length) {
+      if (
+        this.#bufferPos - this.#resetPos + buffer.length >
+        this.#buffer.length
+      ) {
         throw new Error("Buffer too small");
       }
-      // console.log("Trimming buffer to make space");
       this.#buffer.copy(this.#buffer, 0, this.#resetPos, this.#bufferPos);
       this.#bufferPos = this.#bufferPos - this.#resetPos;
     }
@@ -254,8 +257,7 @@ export class Parser extends Writable {
         break;
       }
       case "QUOTED_VALUE": {
-        // error case
-        break;
+        throw new Error("invalid quoting of attribute value");
       }
     }
 
