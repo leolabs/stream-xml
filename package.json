@@ -17,5 +17,8 @@
   "scripts": {
     "bench": "ts-node bench/index.ts",
     "test": "vitest"
+  },
+  "dependencies": {
+    "entities": "^4.5.0"
   }
 }

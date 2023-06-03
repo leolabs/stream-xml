@@ -1,4 +1,5 @@
 import { Writable } from "node:stream";
+import { decodeXML } from "entities";
 
 type CallbackFn = () => unknown;
 type TextNodeCallback = (node: string) => unknown;
@@ -278,6 +279,12 @@ export class Parser extends Writable {
     /** last parsed name */
     let name = "";
 
+    const addValueAndReset = (start: number, end: number) => {
+      const value = this.#buffer.subarray(start, end).toString(this.#encoding);
+      attrs[name] = decodeXML(value);
+      state = { type: "INIT" };
+    };
+
     for (let i = this.#stateEndPos + 1; i <= this.#attributeEndPos; i++) {
       const char = this.#buffer[i];
 
@@ -307,21 +314,13 @@ export class Parser extends Writable {
           if (i === state.startPos && char === QUOTE) {
             state = { type: "QUOTED_VALUE", startPos: i + 1 };
           } else if (isWhitespace(char)) {
-            const value = this.#buffer
-              .subarray(state.startPos, i)
-              .toString(this.#encoding);
-            attrs[name] = value;
-            state = { type: "INIT" };
+            addValueAndReset(state.startPos, i);
           }
           break;
         }
         case "QUOTED_VALUE": {
           if (char === QUOTE && this.#buffer[i - 1] !== BACKSLASH) {
-            const value = this.#buffer
-              .subarray(state.startPos, i)
-              .toString(this.#encoding);
-            attrs[name] = value;
-            state = { type: "INIT" };
+            addValueAndReset(state.startPos, i);
           }
           break;
         }
