@@ -61,6 +61,13 @@ export class Parser extends Writable {
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
 
+  /**
+   * Create a new Parser.
+   *
+   * The parser implements `Stream.Writable`.
+   *
+   * @param options - used to configure the parser
+   */
   constructor(options?: Options) {
     super();
     this.#buffer = Buffer.alloc(options?.bufferSize ?? 128 * 1024);
@@ -71,6 +78,15 @@ export class Parser extends Writable {
     this.#state = newState;
   }
 
+  /**
+   * Register a callback for a certain tag name.
+   *
+   * Use the `attributes()` method to access the attributes during the callback.
+   *
+   * @param tagName - Name of the tag to register the callback for - case sensitive
+   * @param enter - Function to call when the tag for tagName is opened
+   * @param exit - Function to call when the tag for tagName is closed (optional)
+   */
   addCallback(tagName: string, enter: CallbackFn, exit?: CallbackFn) {
     this.#callbacks.push({
       tagName: Buffer.from(tagName),
@@ -79,6 +95,15 @@ export class Parser extends Writable {
     });
   }
 
+  /**
+   * Parse XML without support for streaming.
+   *
+   * This requires you to have the entire payload in memory.
+   * In some cases this can be faster than using the
+   * streaming parsing.
+   *
+   * @param buffer - The byte buffer to parse
+   */
   parse(buffer: Buffer): void {
     this.#state = StateType.Init;
     this.#buffer = buffer;
@@ -201,6 +226,12 @@ export class Parser extends Writable {
     }
   }
 
+  /**
+   * Returns the attributes of the node that is currently being entered.
+   * This method can only be called from inside the enter callback of a node.
+   *
+   * @returns A flat object with all attributes of the currently entered tag.
+   */
   attributes(): Record<string, string | boolean> {
     if (this.#state !== StateType.Attributes) {
       throw new Error(
