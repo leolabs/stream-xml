@@ -131,9 +131,9 @@ export class Parser extends Writable {
     this._parse(0, buffer.length);
   }
 
-  _write(
+  override _write(
     chunk: any,
-    encoding: BufferEncoding,
+    _encoding: BufferEncoding,
     next: (error?: Error | null | undefined) => void
   ): void {
     const buffer = Buffer.from(chunk);
