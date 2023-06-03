@@ -201,9 +201,11 @@ export class Parser extends Writable {
     }
   }
 
-  attributes(): Record<string, string | boolean> | null {
+  attributes(): Record<string, string | boolean> {
     if (this.#state !== StateType.Attributes) {
-      return null;
+      throw new Error(
+        "trying to access attributes outside of the enter callback"
+      );
     }
 
     let state: AttrState = { type: StateType.Init };
