@@ -80,6 +80,7 @@ export class Parser extends Writable {
   }
 
   parse(buffer: Buffer): void {
+    this.#state = StateType.Init;
     this.#buffer = buffer;
     this._parse(0, buffer.length);
   }
