@@ -8,3 +8,4 @@ node_modules/
 tsconfig*
 .prettierignore
 .gitattributes
+yarn.lock
