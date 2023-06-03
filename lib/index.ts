@@ -35,7 +35,7 @@ enum StateType {
 }
 
 type AttrState =
-  | { type: StateType.Init }
+  | { type: "INIT" }
   | { type: "NAME"; startPos: number }
   | { type: "VALUE"; startPos: number }
   | { type: "QUOTED_VALUE"; startPos: number };
@@ -233,7 +233,7 @@ export class Parser extends Writable {
       );
     }
 
-    let state: AttrState = { type: StateType.Init };
+    let state: AttrState = { type: "INIT" };
 
     // parse attributes into object
     const attrs = {} as Record<string, string | boolean>;
@@ -245,7 +245,7 @@ export class Parser extends Writable {
       const char = this.#buffer[i];
 
       switch (state.type) {
-        case StateType.Init: {
+        case "INIT": {
           if (!isWhitespace(char)) {
             state = { type: "NAME", startPos: i };
           }
@@ -258,7 +258,7 @@ export class Parser extends Writable {
               .subarray(state.startPos, i)
               .toString();
             attrs[attrName] = true;
-            state = { type: StateType.Init };
+            state = { type: "INIT" };
           } else if (char === EQUAL) {
             name = this.#buffer.subarray(state.startPos, i).toString();
             state = { type: "VALUE", startPos: i + 1 };
@@ -288,7 +288,7 @@ export class Parser extends Writable {
 
     // final
     switch (state.type) {
-      case StateType.Init: {
+      case "INIT": {
         break;
       }
       case "NAME": {
