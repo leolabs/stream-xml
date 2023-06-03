@@ -74,7 +74,6 @@ export class Parser extends Writable {
   }
 
   private setState(newState: StateType) {
-    //console.log(StateType[newState]);
     this.#state = newState;
   }
 
@@ -115,11 +114,6 @@ export class Parser extends Writable {
     encoding: BufferEncoding,
     next: (error?: Error | null | undefined) => void
   ): void {
-    // console.log("WRITE", {
-    //   resetPos: this.#resetPos,
-    //   bufferPos: this.#bufferPos,
-    //   length: chunk.length,
-    // });
     const buffer = Buffer.from(chunk);
 
     // truncate working buffer if new buffer does not fit
@@ -246,8 +240,6 @@ export class Parser extends Writable {
 
     /** last parsed name */
     let name = "";
-
-    // console.log("Attr end:", this.#attributeEndPos);
 
     for (let i = this.#stateEndPos + 1; i <= this.#attributeEndPos; i++) {
       const char = this.#buffer[i];
