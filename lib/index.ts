@@ -19,14 +19,15 @@ const QUOTE = `"`.charCodeAt(0);
 const BACKSLASH = "\\".charCodeAt(0);
 
 enum StateType {
-  Init = 1,
-  Opening = 2,
-  Comment = 3,
-  TagName = 4,
-  Attributes = 5,
-  Closing = 6,
+  Init = 1, // no args
+  Opening = 2, // with startPos
+  Comment = 3, // with commentChar
+  TagName = 4, // with startPos
+  Attributes = 5, // with startPos & endPos
+  Closing = 6, // with startPos
 }
 
+/** @deprecated */
 type State =
   | { type: StateType.Init }
   | { type: StateType.Opening; startPos: number }
@@ -52,7 +53,10 @@ export class Parser extends Writable {
   #buffer: Buffer = Buffer.alloc(BUFFER_SIZE);
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
-  #state: State = { type: StateType.Init };
+  #state: StateType = StateType.Init;
+  #stateStartPos: number = 0;
+  #stateEndPos: number = 0;
+  #stateCommentChar: number = 0;
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
   #attributeEndPos: number = 0;
@@ -61,7 +65,7 @@ export class Parser extends Writable {
     super();
   }
 
-  private setState(newState: State) {
+  private setState(newState: StateType) {
     // console.log(newState);
     this.#state = newState;
   }
@@ -100,13 +104,10 @@ export class Parser extends Writable {
       const char = this.#buffer[i];
       const lastChar = this.#buffer[i - 1] ?? 0;
 
-      switch (this.#state.type) {
+      switch (this.#state) {
         case StateType.Init: {
           if (char === TAG_START) {
-            this.setState({
-              type: StateType.Opening,
-              startPos: i - 1, // todo: is this used?
-            });
+            this.setState(StateType.Opening);
           }
           break;
         }
@@ -114,44 +115,35 @@ export class Parser extends Writable {
           if (char === BLANK) {
             // ignore
           } else if (char === QUESTION || char === BANG) {
-            this.setState({
-              type: StateType.Comment,
-              typeChar: char,
-            });
+            this.setState(StateType.Comment);
+            this.#stateCommentChar = char;
           } else if (char === TAG_CLOSE) {
-            this.setState({
-              type: StateType.Closing,
-              tagNameStart: i + 1,
-            });
+            this.setState(StateType.Closing);
+            this.#stateStartPos = i + 1;
           } else {
-            this.setState({
-              type: StateType.TagName,
-              startPos: i,
-            });
+            this.setState(StateType.TagName);
+            this.#stateStartPos = i;
           }
           break;
         }
         case StateType.Comment: {
-          if (char === TAG_END && lastChar === this.#state.typeChar) {
-            this.setState({ type: StateType.Init });
+          if (char === TAG_END && lastChar === this.#stateCommentChar) {
+            this.setState(StateType.Init);
             this.#resetPos = i + 1;
           }
           break;
         }
         case StateType.TagName: {
           if (char === BLANK) {
-            this.setState({
-              type: StateType.Attributes,
-              tagNameEnd: i, // before the blank
-              tagNameStart: this.#state.startPos,
-            });
+            this.setState(StateType.Attributes);
+            this.#stateEndPos = i;
           } else if (char === TAG_END) {
             this.#resetPos = i + 1;
             const selfClosing = lastChar === TAG_CLOSE;
             const endPos = i - (selfClosing ? 3 : 2);
             this.#attributeEndPos = endPos;
-            this.doTagEnd(this.#state.startPos, endPos, true, selfClosing);
-            this.setState({ type: StateType.Init });
+            this.doTagEnd(this.#stateStartPos, endPos, true, selfClosing);
+            this.setState(StateType.Init);
           }
           break;
         }
@@ -161,12 +153,12 @@ export class Parser extends Writable {
             const selfClosing = lastChar === TAG_CLOSE;
             this.#attributeEndPos = i - (selfClosing ? 2 : 1);
             this.doTagEnd(
-              this.#state.tagNameStart,
-              this.#state.tagNameEnd,
+              this.#stateStartPos,
+              this.#stateEndPos,
               true,
               selfClosing
             );
-            this.setState({ type: StateType.Init });
+            this.setState(StateType.Init);
           }
           break;
         }
@@ -174,8 +166,8 @@ export class Parser extends Writable {
           if (char === TAG_END) {
             this.#resetPos = i + 1;
             this.#attributeEndPos = i;
-            this.doTagEnd(this.#state.tagNameStart, i, false, true);
-            this.setState({ type: StateType.Init });
+            this.doTagEnd(this.#stateStartPos, i, false, true);
+            this.setState(StateType.Init);
           }
           break;
         }
@@ -186,7 +178,7 @@ export class Parser extends Writable {
   }
 
   attributes(): Record<string, string | boolean> | null {
-    if (this.#state.type !== StateType.Attributes) {
+    if (this.#state !== StateType.Attributes) {
       return null;
     }
 
@@ -200,7 +192,7 @@ export class Parser extends Writable {
 
     // console.log("Attr end:", this.#attributeEndPos);
 
-    for (let i = this.#state.tagNameEnd + 1; i <= this.#attributeEndPos; i++) {
+    for (let i = this.#stateEndPos + 1; i <= this.#attributeEndPos; i++) {
       const char = this.#buffer[i];
 
       switch (state.type) {
