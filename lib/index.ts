@@ -63,11 +63,11 @@ export class Parser extends Writable {
 
   constructor(options?: Options) {
     super();
-    this.#buffer = Buffer.alloc(options?.bufferSize ?? 131072);
+    this.#buffer = Buffer.alloc(options?.bufferSize ?? 128 * 1024);
   }
 
   private setState(newState: StateType) {
-    // console.log(newState);
+    //console.log(StateType[newState]);
     this.#state = newState;
   }
 
