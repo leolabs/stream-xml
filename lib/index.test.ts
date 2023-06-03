@@ -16,11 +16,11 @@ test("basic", async () => {
   const rootMock = vi.fn();
   const childMock = vi.fn();
   const p = new Parser();
-  p.addCallback("RootTag", () => {
+  p.onElement("RootTag", () => {
     console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });
-  p.addCallback("ChildTag", childMock);
+  p.onElement("ChildTag", childMock);
 
   await new Promise((r) => p.write(Buffer.from(pl1), r));
   await new Promise((r) => p.write(Buffer.from(pl2), r));
@@ -47,11 +47,11 @@ test("parse", async () => {
   const rootMock = vi.fn();
   const childMock = vi.fn();
   const p = new Parser();
-  p.addCallback("RootTag", () => {
+  p.onElement("RootTag", () => {
     console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });
-  p.addCallback("ChildTag", childMock);
+  p.onElement("ChildTag", childMock);
 
   p.parse(input);
 
@@ -72,7 +72,7 @@ test("quoting", async () => {
 
   const rootMock = vi.fn();
   const p = new Parser();
-  p.addCallback("RootTag", () => {
+  p.onElement("RootTag", () => {
     console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });

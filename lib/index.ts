@@ -86,7 +86,7 @@ export class Parser extends Writable {
    * @param enter - Function to call when the tag for tagName is opened
    * @param exit - Function to call when the tag for tagName is closed (optional)
    */
-  addCallback(tagName: string, enter: CallbackFn, exit?: CallbackFn) {
+  onElement(tagName: string, enter: CallbackFn, exit?: CallbackFn) {
     this.#callbacks.push({
       tagName: Buffer.from(tagName),
       enter,
