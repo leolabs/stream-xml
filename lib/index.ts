@@ -39,11 +39,17 @@ type AttrState =
   | { type: "VALUE"; startPos: number }
   | { type: "QUOTED_VALUE"; startPos: number };
 
-const BUFFER_SIZE = 131072;
+interface Options {
+  /**
+   * The size of the internal buffer. Should be at least
+   * double that of the buffers that get pushed into the stream.
+   */
+  bufferSize?: number;
+}
 
 export class Parser extends Writable {
   #callbacks: Callback[] = [];
-  #buffer: Buffer = Buffer.alloc(BUFFER_SIZE);
+  #buffer: Buffer;
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
   #state: StateType = StateType.Init;
@@ -54,8 +60,9 @@ export class Parser extends Writable {
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
 
-  constructor() {
+  constructor(options?: Options) {
     super();
+    this.#buffer = Buffer.alloc(options?.bufferSize ?? 131072);
   }
 
   private setState(newState: StateType) {
