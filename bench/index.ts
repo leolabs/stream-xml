@@ -21,7 +21,7 @@ const main = async () => {
         const stream = createReadStream(filePath);
         const parser = new Parser();
         stream.pipe(parser);
-        return new Promise((res) => stream.on("end", res));
+        return new Promise((res) => parser.on("finish", res));
       }),
       b.add("node-xml-stream", async () => {
         const stream = createReadStream(filePath);
