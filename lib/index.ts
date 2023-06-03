@@ -32,19 +32,6 @@ enum StateType {
   Closing = 6, // with startPos
 }
 
-/** @deprecated */
-type State =
-  | { type: StateType.Init }
-  | { type: StateType.Opening; startPos: number }
-  | { type: StateType.Comment; typeChar: number }
-  | { type: StateType.TagName; startPos: number }
-  | {
-      type: StateType.Attributes;
-      tagNameStart: number;
-      tagNameEnd: number;
-    }
-  | { type: StateType.Closing; tagNameStart: number };
-
 type AttrState =
   | { type: StateType.Init }
   | { type: "NAME"; startPos: number }
@@ -61,10 +48,10 @@ export class Parser extends Writable {
   #state: StateType = StateType.Init;
   #stateStartPos: number = 0;
   #stateEndPos: number = 0;
+  #attributeEndPos: number = 0;
   #stateCommentChar: number = 0;
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
-  #attributeEndPos: number = 0;
 
   constructor() {
     super();
@@ -95,7 +82,10 @@ export class Parser extends Writable {
     // });
     const buffer = Buffer.from(chunk);
     // truncate working buffer if new buffer does not fit
-    if (buffer.length + this.#bufferPos > this.#buffer.length) {
+    if (this.#bufferPos + buffer.length > this.#buffer.length) {
+      if (this.#resetPos + buffer.length > this.#buffer.length) {
+        throw new Error("Buffer too small");
+      }
       // console.log("Trimming buffer to make space");
       this.#buffer.copy(this.#buffer, 0, this.#resetPos, this.#bufferPos);
       this.#bufferPos = this.#bufferPos - this.#resetPos;
