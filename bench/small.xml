@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<RootTag attr1="test">
+  <Child1 />
+  <Child2 />
+</RootTag>

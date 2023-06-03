@@ -15,7 +15,7 @@
     "vitest": "^0.31.4"
   },
   "scripts": {
-    "bench": "ts-node lib/index.bench.ts",
+    "bench": "ts-node bench/index.ts",
     "test": "vitest"
   }
 }
