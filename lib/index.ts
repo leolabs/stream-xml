@@ -294,8 +294,6 @@ export class Parser extends Writable {
     enter: boolean,
     exit: boolean
   ) {
-    const tagName = this.#buffer.subarray(nameStart, nameEnd);
-
     for (const cb of this.#callbacks) {
       if (
         Buffer.compare(
