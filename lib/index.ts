@@ -31,6 +31,7 @@ enum StateType {
   TagName = 4, // with startPos
   Attributes = 5, // with startPos & endPos
   Closing = 6, // with startPos
+  Quoted = 7, // with startPos & endPos
 }
 
 type AttrState =
@@ -165,6 +166,8 @@ export class Parser extends Writable {
               selfClosing
             );
             this.setState(StateType.Init);
+          } else if (char === QUOTE) {
+            this.setState(StateType.Quoted);
           }
           break;
         }
@@ -174,6 +177,12 @@ export class Parser extends Writable {
             this.#attributeEndPos = i;
             this.doTagEnd(this.#stateStartPos, i, false, true);
             this.setState(StateType.Init);
+          }
+          break;
+        }
+        case StateType.Quoted: {
+          if (char === QUOTE && lastChar != BACKSLASH) {
+            this.setState(StateType.Attributes);
           }
           break;
         }
