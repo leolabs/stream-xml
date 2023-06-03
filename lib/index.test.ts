@@ -35,6 +35,36 @@ test("basic", async () => {
   expect(childMock).toBeCalledTimes(2);
 });
 
+test("other encodings", async () => {
+  const pl1 = `
+    <?xml something something ?>
+      <RöötTag attr1="test 😅" ättr2 attr3="test3">
+      <ChildTag />
+      <ChildTag />
+    </RootTag>
+  `;
+
+  const rootMock = vi.fn();
+  const childMock = vi.fn();
+  const p = new Parser();
+  p.onElement("RöötTag", () => {
+    console.log("Attr:", p.attributes());
+    rootMock(p.attributes());
+  });
+  p.onElement("ChildTag", childMock);
+
+  await new Promise((r) => p.write(Buffer.from(pl1), r));
+  p.end();
+
+  expect(rootMock).toBeCalledTimes(1);
+  expect(rootMock).toBeCalledWith({
+    attr1: "test 😅",
+    ättr2: true,
+    attr3: "test3",
+  });
+  expect(childMock).toBeCalledTimes(2);
+});
+
 test("parse", async () => {
   const input = Buffer.from(`
     <?xml something something ?>

@@ -46,6 +46,12 @@ interface Options {
    * double that of the buffers that get pushed into the stream.
    */
   bufferSize?: number;
+
+  /**
+   * Encoding that is used when converting parts of the XML document,
+   * e.g. attributes or text nodes, into strings. Default: utf-8
+   */
+  encoding?: BufferEncoding;
 }
 
 export class Parser extends Writable {
@@ -61,6 +67,8 @@ export class Parser extends Writable {
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
 
+  #encoding: BufferEncoding;
+
   /**
    * Create a new Parser.
    *
@@ -70,6 +78,7 @@ export class Parser extends Writable {
    */
   constructor(options?: Options) {
     super();
+    this.#encoding = options?.encoding ?? "utf-8";
     this.#buffer = Buffer.alloc(options?.bufferSize ?? 128 * 1024);
   }
 
@@ -252,15 +261,16 @@ export class Parser extends Writable {
           break;
         }
         case "NAME": {
+          const attrName = this.#buffer
+            .subarray(state.startPos, i)
+            .toString(this.#encoding);
+
           if (isWhitespace(char)) {
             // boolean attribute
-            const attrName = this.#buffer
-              .subarray(state.startPos, i)
-              .toString();
             attrs[attrName] = true;
             state = { type: "INIT" };
           } else if (char === EQUAL) {
-            name = this.#buffer.subarray(state.startPos, i).toString();
+            name = attrName;
             state = { type: "VALUE", startPos: i + 1 };
           }
           break;
@@ -269,17 +279,21 @@ export class Parser extends Writable {
           if (i === state.startPos && char === QUOTE) {
             state = { type: "QUOTED_VALUE", startPos: i + 1 };
           } else if (isWhitespace(char)) {
-            const value = this.#buffer.subarray(state.startPos, i).toString();
+            const value = this.#buffer
+              .subarray(state.startPos, i)
+              .toString(this.#encoding);
             attrs[name] = value;
-            state = { type: StateType.Init };
+            state = { type: "INIT" };
           }
           break;
         }
         case "QUOTED_VALUE": {
           if (char === QUOTE && this.#buffer[i - 1] !== BACKSLASH) {
-            const value = this.#buffer.subarray(state.startPos, i).toString();
+            const value = this.#buffer
+              .subarray(state.startPos, i)
+              .toString(this.#encoding);
             attrs[name] = value;
-            state = { type: StateType.Init };
+            state = { type: "INIT" };
           }
           break;
         }
