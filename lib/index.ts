@@ -13,10 +13,15 @@ const TAG_END = ">".charCodeAt(0);
 const TAG_CLOSE = "/".charCodeAt(0);
 const QUESTION = "?".charCodeAt(0);
 const BANG = "!".charCodeAt(0);
-const BLANK = " ".charCodeAt(0); // todo: consider all whitespace
+const BLANK = " ".charCodeAt(0);
+const TAB = "\t".charCodeAt(0);
+const RETURN = "\r".charCodeAt(0);
+const NEWLINE = "\n".charCodeAt(0);
 const EQUAL = "=".charCodeAt(0);
 const QUOTE = `"`.charCodeAt(0);
 const BACKSLASH = "\\".charCodeAt(0);
+
+const WHITESPACE = new Set([BLANK, TAB, RETURN, NEWLINE]);
 
 enum StateType {
   Init = 1, // no args
@@ -112,7 +117,7 @@ export class Parser extends Writable {
           break;
         }
         case StateType.Opening: {
-          if (char === BLANK) {
+          if (WHITESPACE.has(char)) {
             // ignore
           } else if (char === QUESTION || char === BANG) {
             this.setState(StateType.Comment);
@@ -134,7 +139,7 @@ export class Parser extends Writable {
           break;
         }
         case StateType.TagName: {
-          if (char === BLANK) {
+          if (WHITESPACE.has(char)) {
             this.setState(StateType.Attributes);
             this.#stateEndPos = i;
           } else if (char === TAG_END) {
@@ -197,13 +202,13 @@ export class Parser extends Writable {
 
       switch (state.type) {
         case StateType.Init: {
-          if (char !== BLANK) {
+          if (!WHITESPACE.has(char)) {
             state = { type: "NAME", startPos: i };
           }
           break;
         }
         case "NAME": {
-          if (char === BLANK) {
+          if (WHITESPACE.has(char)) {
             // boolean attribute
             const attrName = this.#buffer
               .subarray(state.startPos, i)
@@ -219,7 +224,7 @@ export class Parser extends Writable {
         case "VALUE": {
           if (i === state.startPos && char === QUOTE) {
             state = { type: "QUOTED_VALUE", startPos: i + 1 };
-          } else if (char === BLANK) {
+          } else if (WHITESPACE.has(char)) {
             const value = this.#buffer.subarray(state.startPos, i).toString();
             attrs[name] = value;
             state = { type: StateType.Init };
