@@ -35,6 +35,35 @@ test("basic", async () => {
   expect(childMock).toBeCalledTimes(2);
 });
 
+test("parse", async () => {
+  const input = Buffer.from(`
+    <?xml something something ?>
+    <RootTag attr1="test" attr2 attr3="test3">
+      <ChildTag />
+      <ChildTag />
+    </RootTag>
+  `);
+
+  const rootMock = vi.fn();
+  const childMock = vi.fn();
+  const p = new Parser();
+  p.addCallback("RootTag", () => {
+    console.log("Attr:", p.attributes());
+    rootMock(p.attributes());
+  });
+  p.addCallback("ChildTag", childMock);
+
+  p.parse(input);
+
+  expect(rootMock).toBeCalledTimes(1);
+  expect(rootMock).toBeCalledWith({
+    attr1: "test",
+    attr2: true,
+    attr3: "test3",
+  });
+  expect(childMock).toBeCalledTimes(2);
+});
+
 test("quoting", async () => {
   const xml = `
     <?xml something something ?>

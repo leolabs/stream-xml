@@ -79,6 +79,11 @@ export class Parser extends Writable {
     });
   }
 
+  parse(buffer: Buffer): void {
+    this.#buffer = buffer;
+    this._parse(0, buffer.length);
+  }
+
   _write(
     chunk: any,
     encoding: BufferEncoding,
@@ -107,7 +112,12 @@ export class Parser extends Writable {
     buffer.copy(this.#buffer, this.#bufferPos);
     this.#bufferPos += buffer.length;
 
-    for (let i = localStart; i < this.#bufferPos; i++) {
+    this._parse(localStart, this.#bufferPos);
+    next();
+  }
+
+  private _parse(start: number, end: number) {
+    for (let i = start; i < end; i++) {
       const char = this.#buffer[i];
       const lastChar = this.#buffer[i - 1] ?? 0;
 
@@ -188,8 +198,6 @@ export class Parser extends Writable {
         }
       }
     }
-
-    next();
   }
 
   attributes(): Record<string, string | boolean> | null {
@@ -287,7 +295,7 @@ export class Parser extends Writable {
     exit: boolean
   ) {
     const tagName = this.#buffer.subarray(nameStart, nameEnd);
-    // console.log("Tag end:", { enter, exit }, `"${tagName.toString()}"`);
+
     for (const cb of this.#callbacks) {
       if (
         Buffer.compare(

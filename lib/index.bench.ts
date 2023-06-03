@@ -15,6 +15,11 @@ b.suite(
     stream.pipe(parser);
     return new Promise((res) => stream.on("end", res));
   }),
+  b.add("stream-xml without stream", async () => {
+    const file = await readFile("bench/session.xml");
+    const parser = new Parser();
+    parser.parse(file);
+  }),
   b.add("libxmljs2", async () => {
     const stream = createReadStream("bench/session.xml");
     const parser = new SaxPushParser();
