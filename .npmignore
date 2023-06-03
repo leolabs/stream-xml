@@ -1,0 +1,10 @@
+lib/
+bench/
+node_modules/
+/types/
+.clinic/
+.vscode/
+
+tsconfig*
+.prettierignore
+.gitattributes

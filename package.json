@@ -1,7 +1,8 @@
 {
   "name": "stream-xml",
+  "description": "A fast streaming XML parser",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.2.5",
@@ -17,6 +18,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc",
+    "prepublishOnly": "rm -rf dist && tsc -p tsconfig.build.json",
     "bench": "yarn --silent build && node dist/bench/index.js",
     "test": "vitest"
   },
