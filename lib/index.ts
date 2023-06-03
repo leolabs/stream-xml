@@ -2,7 +2,6 @@ import { Writable } from "node:stream";
 import { decodeXML } from "entities";
 
 type CallbackFn = () => unknown;
-type TextNodeCallback = (node: string) => unknown;
 
 interface Callback {
   tagName: Buffer;
@@ -59,7 +58,7 @@ interface Options {
 
 export class Parser extends Writable {
   #callbacks: Callback[] = [];
-  #textNodeCallbacks: TextNodeCallback[] = [];
+  #textNodeCallbacks: CallbackFn[] = [];
   #buffer: Buffer;
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
@@ -112,7 +111,7 @@ export class Parser extends Writable {
    *
    * @param cb - Function to call when a text node is encountered
    */
-  onTextNode(cb: TextNodeCallback) {
+  onTextNode(cb: CallbackFn) {
     this.#textNodeCallbacks.push(cb);
   }
 
@@ -244,11 +243,9 @@ export class Parser extends Writable {
         }
         case StateType.TextNode: {
           if (char === TAG_START) {
-            const textNode = this.#buffer
-              .subarray(this.#stateStartPos, i)
-              .toString(this.#encoding);
+            this.#stateEndPos = i;
             for (const cb of this.#textNodeCallbacks) {
-              cb(textNode);
+              cb();
             }
             this.setState(StateType.Opening);
           }
@@ -353,6 +350,19 @@ export class Parser extends Writable {
     }
 
     return attrs;
+  }
+
+  /**
+   * Returns the content for the current text node.
+   *
+   * Only use this inside a text node callback.
+   *
+   * @returns the content for the current text node
+   */
+  textContent(): string {
+    return this.#buffer
+      .subarray(this.#stateStartPos, this.#stateEndPos)
+      .toString(this.#encoding);
   }
 
   private doTagEnd(

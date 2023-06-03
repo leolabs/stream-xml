@@ -128,9 +128,10 @@ test("text nodes", async () => {
 
   const textNodeMock = vi.fn();
   const p = new Parser();
-  p.onTextNode((text) => {
-    if (text.trim().length > 0) {
-      textNodeMock(text.trim());
+  p.onTextNode(() => {
+    const text = p.textContent().trim();
+    if (text.length > 0) {
+      textNodeMock(text);
     }
   });
   await new Promise((r) => p.write(Buffer.from(xml), r));
