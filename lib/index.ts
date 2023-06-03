@@ -1,6 +1,7 @@
 import { Writable } from "node:stream";
 
 type CallbackFn = () => unknown;
+type TextNodeCallback = (node: string) => unknown;
 
 interface Callback {
   tagName: Buffer;
@@ -32,6 +33,7 @@ enum StateType {
   Attributes = 5, // with startPos & endPos
   Closing = 6, // with startPos
   Quoted = 7, // with startPos & endPos
+  TextNode = 8, // with startPos
 }
 
 type AttrState =
@@ -56,6 +58,7 @@ interface Options {
 
 export class Parser extends Writable {
   #callbacks: Callback[] = [];
+  #textNodeCallbacks: TextNodeCallback[] = [];
   #buffer: Buffer;
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
@@ -101,6 +104,15 @@ export class Parser extends Writable {
       enter,
       exit,
     });
+  }
+
+  /**
+   * Register a callback for text nodes.
+   *
+   * @param cb - Function to call when a text node is encountered
+   */
+  onTextNode(cb: TextNodeCallback) {
+    this.#textNodeCallbacks.push(cb);
   }
 
   /**
@@ -174,7 +186,8 @@ export class Parser extends Writable {
         }
         case StateType.Comment: {
           if (char === TAG_END && lastChar === this.#stateCommentChar) {
-            this.setState(StateType.Init);
+            this.#stateStartPos = i + 1;
+            this.setState(StateType.TextNode);
             this.#resetPos = i + 1;
           }
           break;
@@ -189,7 +202,8 @@ export class Parser extends Writable {
             const endPos = i - (selfClosing ? 3 : 2);
             this.#attributeEndPos = endPos;
             this.doTagEnd(this.#stateStartPos, endPos, true, selfClosing);
-            this.setState(StateType.Init);
+            this.#stateStartPos = i + 1;
+            this.setState(StateType.TextNode);
           }
           break;
         }
@@ -204,7 +218,8 @@ export class Parser extends Writable {
               true,
               selfClosing
             );
-            this.setState(StateType.Init);
+            this.#stateStartPos = i + 1;
+            this.setState(StateType.TextNode);
           } else if (char === QUOTE) {
             this.setState(StateType.Quoted);
           }
@@ -215,13 +230,26 @@ export class Parser extends Writable {
             this.#resetPos = i + 1;
             this.#attributeEndPos = i;
             this.doTagEnd(this.#stateStartPos, i, false, true);
-            this.setState(StateType.Init);
+            this.#stateStartPos = i + 1;
+            this.setState(StateType.TextNode);
           }
           break;
         }
         case StateType.Quoted: {
           if (char === QUOTE && lastChar != BACKSLASH) {
             this.setState(StateType.Attributes);
+          }
+          break;
+        }
+        case StateType.TextNode: {
+          if (char === TAG_START) {
+            const textNode = this.#buffer
+              .subarray(this.#stateStartPos, i)
+              .toString(this.#encoding);
+            for (const cb of this.#textNodeCallbacks) {
+              cb(textNode);
+            }
+            this.setState(StateType.Opening);
           }
           break;
         }

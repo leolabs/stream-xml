@@ -115,3 +115,28 @@ test("quoting", async () => {
     attr2: true,
   });
 });
+
+test("text nodes", async () => {
+  const xml = `
+    <?xml something something ?>
+    <RootTag attr1="test > foo" attr2>
+      Hello,
+      <ChildTag />
+      <ChildTag>World!</ChildTag>
+    </RootTag>
+  `;
+
+  const textNodeMock = vi.fn();
+  const p = new Parser();
+  p.onTextNode((text) => {
+    if (text.trim().length > 0) {
+      textNodeMock(text.trim());
+    }
+  });
+  await new Promise((r) => p.write(Buffer.from(xml), r));
+  p.end();
+
+  expect(textNodeMock).toBeCalledTimes(2);
+  expect(textNodeMock).toBeCalledWith("Hello,");
+  expect(textNodeMock).toBeCalledWith("World!");
+});
