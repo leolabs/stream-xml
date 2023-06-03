@@ -24,7 +24,7 @@
     "build": "rm -rf dist && tsc",
     "prepublishOnly": "rm -rf dist && tsc -p tsconfig.build.json",
     "bench": "yarn --silent build && node dist/bench/index.js",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "entities": "^4.5.0"
