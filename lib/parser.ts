@@ -1,9 +1,9 @@
 import { decodeXML } from "entities";
 
-export type CallbackFn = () => unknown;
+export type CallbackFn = (tagName: Uint8Array) => unknown;
+export type TextCallbackFn = () => unknown;
 
 interface Callback {
-  tagName: Uint8Array;
   enter: CallbackFn;
   exit?: CallbackFn;
 }
@@ -23,17 +23,6 @@ const BACKSLASH = "\\".charCodeAt(0);
 
 const isWhitespace = (char: number) =>
   char === BLANK || char === TAB || char === RETURN || char === NEWLINE;
-
-/**
- * Checks if two Uint8Arrays are equal
- */
-const isEqual = (a: Uint8Array, b: Uint8Array) => {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  return a.every((d, i) => d === b[i]);
-};
 
 enum StateType {
   Init = 1, // no args
@@ -68,7 +57,7 @@ export interface Options {
 
 export class Parser {
   #callbacks: Callback[] = [];
-  #textNodeCallbacks: CallbackFn[] = [];
+  #textNodeCallbacks: TextCallbackFn[] = [];
   #buffer: Uint8Array;
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
@@ -81,7 +70,6 @@ export class Parser {
   #resetPos: number = 0;
 
   #textDecoder: TextDecoder;
-  #textEncoder = new TextEncoder();
 
   /**
    * Create a new Parser.
@@ -108,9 +96,8 @@ export class Parser {
    * @param enter - Function to call when the tag for tagName is opened
    * @param exit - Function to call when the tag for tagName is closed (optional)
    */
-  onElement(tagName: string, enter: CallbackFn, exit?: CallbackFn) {
+  onElement(enter: CallbackFn, exit?: CallbackFn) {
     this.#callbacks.push({
-      tagName: this.#textEncoder.encode(tagName),
       enter,
       exit,
     });
@@ -121,7 +108,7 @@ export class Parser {
    *
    * @param cb - Function to call when a text node is encountered
    */
-  onTextNode(cb: CallbackFn) {
+  onTextNode(cb: TextCallbackFn) {
     this.#textNodeCallbacks.push(cb);
   }
 
@@ -268,6 +255,10 @@ export class Parser {
    * @returns A flat object with all attributes of the currently entered tag.
    */
   attributes(): Record<string, string | boolean> {
+    if (this.#state === StateType.TagName) {
+      return {};
+    }
+
     if (this.#state !== StateType.Attributes) {
       throw new Error(
         "trying to access attributes outside of the enter callback"
@@ -377,14 +368,18 @@ export class Parser {
     enter: boolean,
     exit: boolean
   ) {
+    if (this.#callbacks.length === 0) {
+      return;
+    }
+
+    const name = this.#buffer.subarray(nameStart, nameEnd);
+
     for (const cb of this.#callbacks) {
-      if (isEqual(this.#buffer.subarray(nameStart, nameEnd), cb.tagName)) {
-        if (enter) {
-          cb.enter();
-        }
-        if (exit) {
-          cb.exit?.();
-        }
+      if (enter) {
+        cb.enter(name);
+      }
+      if (exit) {
+        cb.exit?.(name);
       }
     }
   }

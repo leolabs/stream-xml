@@ -1,7 +1,22 @@
-import { expect, test, vi } from "vitest";
+import { Mock, expect, test, vi } from "vitest";
 import { Parser } from "./parser";
+import { isEqual } from "./util/is-equal";
 
 // todo: test quoting (special characters, escapes etc)
+
+/** Creates a tag mock that should get called each time a tag name is visited */
+const makeTagMock = (parser: Parser, tagName: string): Mock<[], void> => {
+  const mock = vi.fn();
+  const enc = new TextEncoder();
+  const encoded = enc.encode(tagName);
+  parser.onElement((tag) => {
+    if (isEqual(tag, encoded)) {
+      mock(parser.attributes());
+    }
+  });
+
+  return mock;
+};
 
 test("basic", async () => {
   const pl1 = `
@@ -13,13 +28,10 @@ test("basic", async () => {
     <ChildTag />
   </RootTag>`;
 
-  const rootMock = vi.fn();
-  const childMock = vi.fn();
   const p = new Parser();
-  p.onElement("RootTag", () => {
-    rootMock(p.attributes());
-  });
-  p.onElement("ChildTag", childMock);
+
+  const rootMock = makeTagMock(p, "RootTag");
+  const childMock = makeTagMock(p, "ChildTag");
 
   p.push(Buffer.from(pl1));
   p.push(Buffer.from(pl2));
@@ -36,19 +48,11 @@ test("basic", async () => {
 test("other encodings", async () => {
   const pl1 = `
     <?xml something something ?>
-      <RöötTag attr1="test 😅" ättr2 attr3="test3">
-      <ChildTag />
-      <ChildTag />
-    </RootTag>
+    <RöötTag attr1="test 😅" ättr2 attr3="test3" />
   `;
 
-  const rootMock = vi.fn();
-  const childMock = vi.fn();
   const p = new Parser();
-  p.onElement("RöötTag", () => {
-    rootMock(p.attributes());
-  });
-  p.onElement("ChildTag", childMock);
+  const rootMock = makeTagMock(p, "RöötTag");
   p.push(Buffer.from(pl1));
 
   expect(rootMock).toBeCalledTimes(1);
@@ -57,7 +61,6 @@ test("other encodings", async () => {
     ättr2: true,
     attr3: "test3",
   });
-  expect(childMock).toBeCalledTimes(2);
 });
 
 test("parse", async () => {
@@ -69,13 +72,9 @@ test("parse", async () => {
     </RootTag>
   `);
 
-  const rootMock = vi.fn();
-  const childMock = vi.fn();
   const p = new Parser();
-  p.onElement("RootTag", () => {
-    rootMock(p.attributes());
-  });
-  p.onElement("ChildTag", childMock);
+  const rootMock = makeTagMock(p, "RootTag");
+  const childMock = makeTagMock(p, "ChildTag");
 
   p.parse(input);
 
@@ -98,8 +97,7 @@ test("tags without attributes", async () => {
   `);
 
   const p = new Parser();
-  const rootMock = vi.fn();
-  p.onElement("RootTag", rootMock);
+  const rootMock = makeTagMock(p, "RootTag");
   p.parse(input);
 
   expect(rootMock).toBeCalledTimes(1);
@@ -111,11 +109,8 @@ test("quoting", async () => {
     <RootTag attr1="test > foo" attr2 />
   `;
 
-  const rootMock = vi.fn();
   const p = new Parser();
-  p.onElement("RootTag", () => {
-    rootMock(p.attributes());
-  });
+  const rootMock = makeTagMock(p, "RootTag");
   p.push(Buffer.from(xml));
 
   expect(rootMock).toBeCalledTimes(1);

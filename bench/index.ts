@@ -9,7 +9,7 @@ import { SaxPushParser, parseXml } from "libxmljs2";
 import { X2jOptionsOptional, XMLParser } from "fast-xml-parser";
 import XmlStreamParser from "node-xml-stream";
 
-import { Parser, StreamParser } from "../lib";
+import { StreamParser } from "../lib";
 
 const main = async () => {
   for (const fileName of ["small.xml", "medium.xml", "semi-large.xml"]) {
@@ -74,11 +74,19 @@ const main = async () => {
         stream.pipe(parser);
         return new Promise((res) => parser.on("finish", res));
       }),
-      b.add("stream-xml without stream", async () => {
-        const file = await readFile(filePath);
-        const parser = new Parser();
-        parser.parse(file);
-      }),
+      // b.add("stream-xml without stream", async () => {
+      //   const file = await readFile(filePath);
+      //   const parser = new Parser();
+      //   parser.parse(file);
+      // }),
+      // b.add("stream-xml with selectors", async () => {
+      //   const stream = createReadStream(filePath);
+      //   const streamParser = new StreamParser();
+      //   const selectorParser = new SelectorParser(streamParser.parser);
+      //   selectorParser.on("Name", () => {});
+      //   stream.pipe(streamParser);
+      //   return new Promise((res) => streamParser.on("finish", res));
+      // }),
       ...(process.env.LIB_ONLY ? [] : externalLibs),
       b.cycle(),
       b.complete()

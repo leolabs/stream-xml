@@ -28,14 +28,16 @@ import { Parser } from "https://deno.land/x/stream_xml/lib/parser.ts";
 
 ```js
 import { createReadStream } from "node:fs";
-import { StreamParser } from "stream-xml";
+import { StreamParser, SelectorParser } from "stream-xml";
 
 const streamParser = new StreamParser();
-streamParser.parser.onElement("myTag", () => {
+const selectorParser = new SelectorParser(streamParser.parser);
+
+selectorParser.on("myTag", () => {
   console.log("Encountered my tag!");
   // get attributes using: parser.attributes()
 });
-streamParser.parser.onTextNode(() => {
+streamParser.parser.on(() => {
   console.log("Encountered a text node");
   // get the content using: parser.textContent()
 });
@@ -50,11 +52,12 @@ streamParser.on("finish", () => console.log("Done 🎉"));
 
 ```js
 import { readFileSync } from "node:fs";
-import { Parser } from "stream-xml";
+import { Parser, SelectorParser } from "stream-xml";
 
 const parser = new Parser();
+const selectorParser = new SelectorParser(parser);
 
-parser.onElement("myTag", () => {
+selectorParser.on("myTag", () => {
   console.log("Encountered my tag!");
   // get attributes using: parser.attributes()
 });
