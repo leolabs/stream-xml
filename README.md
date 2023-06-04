@@ -2,6 +2,24 @@
 
 Streaming XML parser using callbacks for handling individual tags.
 
+## Installing with Yarn or NPM
+
+```sh
+yarn add stream-xml
+```
+
+or
+
+```sh
+npm i stream-xml
+```
+
+## Installing in Deno
+
+```js
+import { Parser } from "https://deno.land/x/stream_xml/lib/parser.ts";
+```
+
 ## Usage
 
 ### Example
