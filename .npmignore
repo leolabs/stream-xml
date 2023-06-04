@@ -9,3 +9,6 @@ tsconfig*
 .prettierignore
 .gitattributes
 yarn.lock
+
+*.test.js
+*.test.d.ts
