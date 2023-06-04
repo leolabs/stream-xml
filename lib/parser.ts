@@ -165,7 +165,7 @@ export class Parser {
 
   private _parse(start: number, end: number) {
     for (let i = start; i < end; i++) {
-      const char = this.#buffer[i];
+      const char = this.#buffer[i]!;
       const lastChar = this.#buffer[i - 1] ?? 0;
 
       switch (this.#state) {
@@ -289,7 +289,7 @@ export class Parser {
     };
 
     for (let i = this.#stateEndPos + 1; i <= this.#attributeEndPos; i++) {
-      const char = this.#buffer[i];
+      const char = this.#buffer[i]!;
 
       switch (state.type) {
         case "INIT": {
