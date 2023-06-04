@@ -3,7 +3,7 @@ import { decodeXML } from "entities";
 export type CallbackFn = () => unknown;
 
 interface Callback {
-  tagName: Buffer;
+  tagName: Uint8Array;
   enter: CallbackFn;
   exit?: CallbackFn;
 }
@@ -23,6 +23,17 @@ const BACKSLASH = "\\".charCodeAt(0);
 
 const isWhitespace = (char: number) =>
   char === BLANK || char === TAB || char === RETURN || char === NEWLINE;
+
+/**
+ * Checks if two Uint8Arrays are equal
+ */
+const isEqual = (a: Uint8Array, b: Uint8Array) => {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  return a.every((d, i) => d === b[i]);
+};
 
 enum StateType {
   Init = 1, // no args
@@ -70,6 +81,7 @@ export class Parser {
   #resetPos: number = 0;
 
   #textDecoder: TextDecoder;
+  #textEncoder = new TextEncoder();
 
   /**
    * Create a new Parser.
@@ -98,7 +110,7 @@ export class Parser {
    */
   onElement(tagName: string, enter: CallbackFn, exit?: CallbackFn) {
     this.#callbacks.push({
-      tagName: Buffer.from(tagName),
+      tagName: this.#textEncoder.encode(tagName),
       enter,
       exit,
     });
@@ -366,12 +378,7 @@ export class Parser {
     exit: boolean
   ) {
     for (const cb of this.#callbacks) {
-      if (
-        Buffer.compare(
-          this.#buffer.subarray(nameStart, nameEnd),
-          cb.tagName
-        ) === 0
-      ) {
+      if (isEqual(this.#buffer.subarray(nameStart, nameEnd), cb.tagName)) {
         if (enter) {
           cb.enter();
         }
