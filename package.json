@@ -23,7 +23,8 @@
   "scripts": {
     "build": "rm -rf dist && tsc",
     "prepublishOnly": "rm -rf dist && tsc -p tsconfig.build.json",
-    "bench": "yarn --silent build && node dist/bench/index.js",
+    "bench": "yarn --silent build && LIB_ONLY=true node dist/bench/index.js",
+    "bench:all": "yarn --silent build && node dist/bench/index.js",
     "test": "vitest run"
   },
   "dependencies": {

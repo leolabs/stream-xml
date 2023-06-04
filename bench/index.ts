@@ -15,24 +15,12 @@ const main = async () => {
   for (const fileName of ["small.xml", "medium.xml", "semi-large.xml"]) {
     const filePath = join(cwd(), "bench", fileName);
 
-    await b.suite(
-      `XML parsing (${fileName})`,
-      b.add("stream-xml", async () => {
-        const stream = createReadStream(filePath);
-        const parser = new StreamParser();
-        stream.pipe(parser);
-        return new Promise((res) => parser.on("finish", res));
-      }),
+    const externalLibs = [
       b.add("node-xml-stream", async () => {
         const stream = createReadStream(filePath);
         const parser = new XmlStreamParser();
         stream.pipe(parser);
         return new Promise((res) => parser.on("finish", res));
-      }),
-      b.add("stream-xml without stream", async () => {
-        const file = await readFile(filePath);
-        const parser = new Parser();
-        parser.parse(file);
       }),
       b.add("libxmljs2", async () => {
         const stream = createReadStream(filePath);
@@ -76,16 +64,24 @@ const main = async () => {
         const parser = new XMLParser(parserConfig);
         parser.parse(file);
       }),
-      b.cycle(),
-      b.complete((s) => {
-        console.log();
+    ];
 
-        for (const result of s.results) {
-          console.log();
-          console.log(result.name);
-          console.log("Mean:", result.details.mean, "s");
-        }
-      })
+    await b.suite(
+      `XML parsing (${fileName})`,
+      b.add("stream-xml", async () => {
+        const stream = createReadStream(filePath);
+        const parser = new StreamParser();
+        stream.pipe(parser);
+        return new Promise((res) => parser.on("finish", res));
+      }),
+      b.add("stream-xml without stream", async () => {
+        const file = await readFile(filePath);
+        const parser = new Parser();
+        parser.parse(file);
+      }),
+      ...(process.env.LIB_ONLY ? [] : externalLibs),
+      b.cycle(),
+      b.complete()
     );
   }
 };
