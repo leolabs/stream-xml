@@ -205,7 +205,7 @@ export class Parser {
           } else if (char === TAG_END) {
             this.#resetPos = i + 1;
             const selfClosing = lastChar === TAG_CLOSE;
-            const endPos = i - (selfClosing ? 3 : 2);
+            const endPos = i - (selfClosing ? 1 : 0);
             this.#attributeEndPos = endPos;
             this.doTagEnd(this.#stateStartPos, endPos, true, selfClosing);
             this.#stateStartPos = i + 1;

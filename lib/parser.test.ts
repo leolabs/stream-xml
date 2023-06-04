@@ -88,6 +88,23 @@ test("parse", async () => {
   expect(childMock).toBeCalledTimes(2);
 });
 
+test("tags without attributes", async () => {
+  const input = Buffer.from(`
+    <?xml something something ?>
+    <RootTag>
+      <ChildTag />
+      <ChildTag />
+    </RootTag>
+  `);
+
+  const p = new Parser();
+  const rootMock = vi.fn();
+  p.onElement("RootTag", rootMock);
+  p.parse(input);
+
+  expect(rootMock).toBeCalledTimes(1);
+});
+
 test("quoting", async () => {
   const xml = `
     <?xml something something ?>
