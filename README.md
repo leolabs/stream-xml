@@ -6,11 +6,36 @@ Streaming XML parser using callbacks for handling individual tags.
 
 ### Example
 
+#### Parsing a Stream
+
 ```js
 import { createReadStream } from "node:fs";
+import { StreamParser } from "stream-xml";
+
+const streamParser = new StreamParser();
+streamParser.parser.onElement("myTag", () => {
+  console.log("Encountered my tag!");
+  // get attributes using: parser.attributes()
+});
+streamParser.parser.onTextNode(() => {
+  console.log("Encountered a text node");
+  // get the content using: parser.textContent()
+});
+
+const file = createReadStream("data.xml");
+file.pipe(streamParser);
+
+streamParser.on("finish", () => console.log("Done 🎉"));
+```
+
+#### Parsing an Entire File
+
+```js
+import { readFileSync } from "node:fs";
 import { Parser } from "stream-xml";
 
 const parser = new Parser();
+
 parser.onElement("myTag", () => {
   console.log("Encountered my tag!");
   // get attributes using: parser.attributes()
@@ -20,10 +45,8 @@ parser.onTextNode(() => {
   // get the content using: parser.textContent()
 });
 
-const file = createReadStream("data.xml");
-file.pipe(parser);
-
-parser.on("finish", () => console.log("Done 🎉"));
+const file = readFileSync("data.xml");
+parser.parse(file);
 ```
 
 ### Options

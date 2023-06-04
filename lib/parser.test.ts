@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { Parser } from ".";
+import { Parser } from "./parser";
 
 // todo: test quoting (special characters, escapes etc)
 
@@ -17,14 +17,12 @@ test("basic", async () => {
   const childMock = vi.fn();
   const p = new Parser();
   p.onElement("RootTag", () => {
-    console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });
   p.onElement("ChildTag", childMock);
 
-  await new Promise((r) => p.write(Buffer.from(pl1), r));
-  await new Promise((r) => p.write(Buffer.from(pl2), r));
-  p.end();
+  p.push(Buffer.from(pl1));
+  p.push(Buffer.from(pl2));
 
   expect(rootMock).toBeCalledTimes(1);
   expect(rootMock).toBeCalledWith({
@@ -48,13 +46,10 @@ test("other encodings", async () => {
   const childMock = vi.fn();
   const p = new Parser();
   p.onElement("RöötTag", () => {
-    console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });
   p.onElement("ChildTag", childMock);
-
-  await new Promise((r) => p.write(Buffer.from(pl1), r));
-  p.end();
+  p.push(Buffer.from(pl1));
 
   expect(rootMock).toBeCalledTimes(1);
   expect(rootMock).toBeCalledWith({
@@ -78,7 +73,6 @@ test("parse", async () => {
   const childMock = vi.fn();
   const p = new Parser();
   p.onElement("RootTag", () => {
-    console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });
   p.onElement("ChildTag", childMock);
@@ -103,11 +97,9 @@ test("quoting", async () => {
   const rootMock = vi.fn();
   const p = new Parser();
   p.onElement("RootTag", () => {
-    console.log("Attr:", p.attributes());
     rootMock(p.attributes());
   });
-  await new Promise((r) => p.write(Buffer.from(xml), r));
-  p.end();
+  p.push(Buffer.from(xml));
 
   expect(rootMock).toBeCalledTimes(1);
   expect(rootMock).toBeCalledWith({
@@ -134,8 +126,7 @@ test("text nodes", async () => {
       textNodeMock(text);
     }
   });
-  await new Promise((r) => p.write(Buffer.from(xml), r));
-  p.end();
+  p.push(Buffer.from(xml));
 
   expect(textNodeMock).toBeCalledTimes(2);
   expect(textNodeMock).toBeCalledWith("Hello,");
