@@ -1,9 +1,10 @@
-import { expect, test, vi } from "vitest";
+import { expect, test, describe, vi } from "vitest";
 import { Parser } from "./parser";
+import { StreamParser } from "./stream-parser";
 
 // todo: test quoting (special characters, escapes etc)
 
-test("basic", async () => {
+test("basic streaming", async () => {
   const pl1 = `
     <?xml something something ?>
     <RootTag attr1="test" attr2`;
@@ -60,7 +61,7 @@ test("other encodings", async () => {
   expect(childMock).toBeCalledTimes(2);
 });
 
-test("parse", async () => {
+test("parse function", async () => {
   const input = Buffer.from(`
     <?xml something something ?>
     <RootTag attr1="test" attr2 attr3="test3">
@@ -148,4 +149,56 @@ test("text nodes", async () => {
   expect(textNodeMock).toBeCalledTimes(2);
   expect(textNodeMock).toBeCalledWith("Hello,");
   expect(textNodeMock).toBeCalledWith("World!");
+});
+
+describe("aborting parsing", () => {
+  test("aborting sync parse", () => {
+    const input = Buffer.from(`
+      <?xml something something ?>
+      <RootTag attr1="test" attr2 attr3="test3">
+        <ChildTag />
+        <ChildTag />
+      </RootTag>
+    `);
+
+    const childMock = vi.fn();
+    const p = new Parser();
+    p.onElement("ChildTag", () => {
+      p.abort();
+      childMock();
+    });
+
+    p.parse(input);
+    expect(childMock).toBeCalledTimes(1);
+
+    childMock.mockClear();
+
+    p.parse(input);
+    expect(childMock).toBeCalledTimes(1);
+  });
+
+  test("aborting streaming parse", () => {
+    const pl1 = `
+      <?xml something something ?>
+      <RootTag attr1="test" attr2 attr3="test3">
+        <ChildTag />`;
+
+    const pl2 = `
+        <ChildTag />
+        <ChildTag />
+      </RootTag>`;
+
+    const childMock = vi.fn();
+    const p = new StreamParser();
+    p.parser.onElement("ChildTag", () => {
+      childMock();
+      p.parser.abort();
+    });
+
+    p.write(Buffer.from(pl1));
+    p.write(Buffer.from(pl2));
+    p.end();
+
+    expect(childMock).toBeCalledTimes(1);
+  });
 });

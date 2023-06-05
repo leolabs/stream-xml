@@ -83,6 +83,8 @@ export class Parser {
   #textDecoder: TextDecoder;
   #textEncoder = new TextEncoder();
 
+  #aborted = false;
+
   /**
    * Create a new Parser.
    *
@@ -138,6 +140,7 @@ export class Parser {
     this.#state = StateType.Init;
     this.#buffer = buffer;
     this._parse(0, buffer.length);
+    this.reset();
   }
 
   push(chunk: Uint8Array): void {
@@ -165,6 +168,10 @@ export class Parser {
 
   private _parse(start: number, end: number) {
     for (let i = start; i < end; i++) {
+      if (this.#aborted) {
+        break;
+      }
+
       const char = this.#buffer[i]!;
       const lastChar = this.#buffer[i - 1] ?? 0;
 
@@ -259,6 +266,30 @@ export class Parser {
         }
       }
     }
+  }
+
+  /**
+   * Aborts parsing the current input. If you're using streams,
+   * this means all further chunks get ignored unless you call
+   * `reset`. The `parse` method automatically calls `reset`
+   * after the entire input string is parsed.
+   */
+  abort() {
+    this.#aborted = true;
+  }
+
+  /**
+   * Resets the parser to its initial state.
+   */
+  reset() {
+    this.#bufferPos = 0;
+    this.#state = StateType.Init;
+    this.#stateStartPos = 0;
+    this.#stateEndPos = 0;
+    this.#attributeEndPos = 0;
+    this.#stateCommentChar = 0;
+    this.#resetPos = 0;
+    this.#aborted = false;
   }
 
   /**
