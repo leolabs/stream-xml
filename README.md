@@ -28,9 +28,12 @@ import { Parser } from "https://deno.land/x/stream_xml/lib/parser.ts";
 
 ```js
 import { createReadStream } from "node:fs";
-import { StreamParser } from "stream-xml";
+import { StreamParser, SelectorParser } from "stream-xml";
 
+// This wraps a Parser to make it compatible
+// with Node's streaming pipeline
 const streamParser = new StreamParser();
+
 streamParser.parser.onElement("myTag", () => {
   console.log("Encountered my tag!");
   // get attributes using: parser.attributes()
@@ -50,7 +53,7 @@ streamParser.on("finish", () => console.log("Done 🎉"));
 
 ```js
 import { readFileSync } from "node:fs";
-import { Parser } from "stream-xml";
+import { Parser, SelectorParser } from "stream-xml";
 
 const parser = new Parser();
 

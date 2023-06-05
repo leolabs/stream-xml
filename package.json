@@ -20,6 +20,9 @@
     "typescript": "^5.1.3",
     "vitest": "^0.31.4"
   },
+  "engines": {
+    "node": ">=16.6.0"
+  },
   "scripts": {
     "build": "rm -rf dist && tsc",
     "prepublishOnly": "rm -rf dist && tsc -p tsconfig.build.json",

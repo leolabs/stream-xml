@@ -1,11 +1,29 @@
 import { decodeXML } from "entities";
+import { Test, parseSelector } from "./util/selector";
+import { isEqual } from "./util/is-equal";
 
-export type CallbackFn = () => unknown;
+export type CallbackFn = (tagName: Uint8Array) => unknown;
+export type ElementCallbackFn = () => unknown;
+export type SelectorCallbackFn = () => unknown;
+export type TextCallbackFn = () => unknown;
 
-interface Callback {
-  tagName: Uint8Array;
+export type Attributes = Record<string, string | boolean>;
+
+interface AnyElementCallback {
   enter: CallbackFn;
   exit?: CallbackFn;
+}
+
+interface ElementCallback {
+  tagName: Uint8Array;
+  enter: SelectorCallbackFn;
+  exit?: SelectorCallbackFn;
+}
+
+interface SelectorCallback {
+  test: Test;
+  enter: SelectorCallbackFn;
+  exit?: SelectorCallbackFn;
 }
 
 const TAG_START = "<".charCodeAt(0);
@@ -23,17 +41,6 @@ const BACKSLASH = "\\".charCodeAt(0);
 
 const isWhitespace = (char: number) =>
   char === BLANK || char === TAB || char === RETURN || char === NEWLINE;
-
-/**
- * Checks if two Uint8Arrays are equal
- */
-const isEqual = (a: Uint8Array, b: Uint8Array) => {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  return a.every((d, i) => d === b[i]);
-};
 
 enum StateType {
   Init = 1, // no args
@@ -67,8 +74,6 @@ export interface Options {
 }
 
 export class Parser {
-  #callbacks: Callback[] = [];
-  #textNodeCallbacks: CallbackFn[] = [];
   #buffer: Uint8Array;
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
@@ -82,6 +87,14 @@ export class Parser {
 
   #textDecoder: TextDecoder;
   #textEncoder = new TextEncoder();
+
+  /** Keeps track of the current hierarchy of visited tags */
+  #tagStack: Uint8Array[] = [];
+
+  #textNodeCallbacks: TextCallbackFn[] = [];
+  #anyElementCallbacks: AnyElementCallback[] = [];
+  #elementCallbacks: ElementCallback[] = [];
+  #selectorCallbacks: SelectorCallback[] = [];
 
   /**
    * Create a new Parser.
@@ -100,20 +113,83 @@ export class Parser {
   }
 
   /**
-   * Register a callback for a certain tag name.
+   * Register a callback for when any element is visited.
    *
    * Use the `attributes()` method to access the attributes during the callback.
    *
-   * @param tagName - Name of the tag to register the callback for - case sensitive
    * @param enter - Function to call when the tag for tagName is opened
    * @param exit - Function to call when the tag for tagName is closed (optional)
    */
-  onElement(tagName: string, enter: CallbackFn, exit?: CallbackFn) {
-    this.#callbacks.push({
-      tagName: this.#textEncoder.encode(tagName),
+  onAnyElement(enter: CallbackFn, exit?: CallbackFn) {
+    this.#anyElementCallbacks.push({
       enter,
       exit,
     });
+  }
+
+  /**
+   * Registers callback for when a given element is visited.
+   *
+   * @example
+   * // matches all TagName elements, regardless of their position
+   * onSelector("TagName", enterCallback, exitCallback)
+   * @example
+   * // matches all ChildTag elements in TagName elements
+   * onSelector("TagName ChildTag", enterCallback, exitCallback)
+   * @example
+   * // matches direct ChildTag descendants in TagName elements
+   * onSelector("TagName > ChildTag", enterCallback, exitCallback)
+   * @example
+   * // matches multiple rules
+   * onSelector("TagName > ChildTag, OtherTag", enterCallback, exitCallback)
+   */
+  onElement(
+    selector: string,
+    enter: SelectorCallbackFn,
+    exit?: SelectorCallbackFn
+  ) {
+    // If we just want to match elements outside
+    // of context, push it onto this stack instead.
+    if (!selector.includes(" ")) {
+      this.#elementCallbacks.push({
+        tagName: this.#textEncoder.encode(selector),
+        enter,
+        exit,
+      });
+      return;
+    }
+
+    const test = parseSelector(selector);
+    this.#selectorCallbacks.push({
+      test,
+      enter,
+      exit,
+    });
+
+    // If this is the first selector,
+    // start tracking all elements
+    if (this.#selectorCallbacks.length === 1) {
+      this.onAnyElement(
+        (tagName) => {
+          this.#tagStack.push(tagName);
+
+          for (const selector of this.#selectorCallbacks) {
+            if (selector.test(this.#tagStack)) {
+              selector.enter();
+            }
+          }
+        },
+        () => {
+          for (const selector of this.#selectorCallbacks) {
+            if (selector.test(this.#tagStack)) {
+              selector.exit?.();
+            }
+          }
+
+          this.#tagStack.pop();
+        }
+      );
+    }
   }
 
   /**
@@ -121,7 +197,7 @@ export class Parser {
    *
    * @param cb - Function to call when a text node is encountered
    */
-  onTextNode(cb: CallbackFn) {
+  onTextNode(cb: TextCallbackFn) {
     this.#textNodeCallbacks.push(cb);
   }
 
@@ -165,7 +241,7 @@ export class Parser {
 
   private _parse(start: number, end: number) {
     for (let i = start; i < end; i++) {
-      const char = this.#buffer[i];
+      const char = this.#buffer[i]!;
       const lastChar = this.#buffer[i - 1] ?? 0;
 
       switch (this.#state) {
@@ -268,6 +344,10 @@ export class Parser {
    * @returns A flat object with all attributes of the currently entered tag.
    */
   attributes(): Record<string, string | boolean> {
+    if (this.#state === StateType.TagName) {
+      return {};
+    }
+
     if (this.#state !== StateType.Attributes) {
       throw new Error(
         "trying to access attributes outside of the enter callback"
@@ -289,7 +369,7 @@ export class Parser {
     };
 
     for (let i = this.#stateEndPos + 1; i <= this.#attributeEndPos; i++) {
-      const char = this.#buffer[i];
+      const char = this.#buffer[i]!;
 
       switch (state.type) {
         case "INIT": {
@@ -377,8 +457,26 @@ export class Parser {
     enter: boolean,
     exit: boolean
   ) {
-    for (const cb of this.#callbacks) {
-      if (isEqual(this.#buffer.subarray(nameStart, nameEnd), cb.tagName)) {
+    if (
+      this.#anyElementCallbacks.length === 0 &&
+      this.#elementCallbacks.length === 0
+    ) {
+      return;
+    }
+
+    const name = this.#buffer.subarray(nameStart, nameEnd);
+
+    for (const cb of this.#anyElementCallbacks) {
+      if (enter) {
+        cb.enter(name);
+      }
+      if (exit) {
+        cb.exit?.(name);
+      }
+    }
+
+    for (const cb of this.#elementCallbacks) {
+      if (isEqual(name, cb.tagName)) {
         if (enter) {
           cb.enter();
         }
