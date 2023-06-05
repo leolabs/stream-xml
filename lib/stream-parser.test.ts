@@ -1,19 +1,13 @@
 import { Mock, expect, test, vi } from "vitest";
 import { StreamParser } from "./stream-parser";
 import { Parser } from "./parser";
-import { isEqual } from "./util/is-equal";
 
 /** Creates a tag mock that should get called each time a tag name is visited */
 const makeTagMock = (parser: Parser, tagName: string): Mock<[], void> => {
   const mock = vi.fn();
-  const enc = new TextEncoder();
-  const encoded = enc.encode(tagName);
-  parser.onElement((tag) => {
-    if (isEqual(tag, encoded)) {
-      mock(parser.attributes());
-    }
+  parser.onElement(tagName, () => {
+    mock(parser.attributes());
   });
-
   return mock;
 };
 

@@ -1,23 +1,5 @@
 import { Mock, expect, test, vi } from "vitest";
 import { Attributes, Parser } from "./parser";
-import { isEqual } from "./util/is-equal";
-
-/** Creates a tag mock that should get called each time a tag name is visited */
-const makeTagMock = (
-  parser: Parser,
-  tagName: string
-): Mock<[Attributes], void> => {
-  const mock = vi.fn();
-  const enc = new TextEncoder();
-  const encoded = enc.encode(tagName);
-  parser.onElement((tag) => {
-    if (isEqual(tag, encoded)) {
-      mock(parser.attributes());
-    }
-  });
-
-  return mock;
-};
 
 /** Creates a tag mock that should get called each time a tag name is visited */
 const makeSelectorMock = (
@@ -26,7 +8,7 @@ const makeSelectorMock = (
 ): Mock<[Attributes], void> => {
   const mock = vi.fn();
 
-  parser.onSelector(selector, () => {
+  parser.onElement(selector, () => {
     mock(parser.attributes());
   });
 
@@ -45,8 +27,8 @@ test("basic", async () => {
 
   const p = new Parser();
 
-  const rootMock = makeTagMock(p, "RootTag");
-  const childMock = makeTagMock(p, "ChildTag");
+  const rootMock = makeSelectorMock(p, "RootTag");
+  const childMock = makeSelectorMock(p, "ChildTag");
 
   p.push(Buffer.from(pl1));
   p.push(Buffer.from(pl2));
@@ -67,7 +49,7 @@ test("other encodings", async () => {
   `;
 
   const p = new Parser();
-  const rootMock = makeTagMock(p, "RöötTag");
+  const rootMock = makeSelectorMock(p, "RöötTag");
   p.push(Buffer.from(pl1));
 
   expect(rootMock).toBeCalledTimes(1);
@@ -88,8 +70,8 @@ test("parse", async () => {
   `);
 
   const p = new Parser();
-  const rootMock = makeTagMock(p, "RootTag");
-  const childMock = makeTagMock(p, "ChildTag");
+  const rootMock = makeSelectorMock(p, "RootTag");
+  const childMock = makeSelectorMock(p, "ChildTag");
 
   p.parse(input);
 
@@ -112,7 +94,7 @@ test("tags without attributes", async () => {
   `);
 
   const p = new Parser();
-  const rootMock = makeTagMock(p, "RootTag");
+  const rootMock = makeSelectorMock(p, "RootTag");
   p.parse(input);
 
   expect(rootMock).toBeCalledTimes(1);
@@ -125,7 +107,7 @@ test("quoting", async () => {
   `;
 
   const p = new Parser();
-  const rootMock = makeTagMock(p, "RootTag");
+  const rootMock = makeSelectorMock(p, "RootTag");
   p.push(Buffer.from(xml));
 
   expect(rootMock).toBeCalledTimes(1);

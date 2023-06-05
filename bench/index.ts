@@ -79,10 +79,17 @@ const main = async () => {
         const parser = new Parser();
         parser.parse(file);
       }),
-      b.add("stream-xml with selectors", async () => {
+      b.add("stream-xml with simple selector", async () => {
         const stream = createReadStream(filePath);
         const parser = new StreamParser();
-        parser.parser.onSelector("LiveSet", () => {});
+        parser.parser.onElement("LiveSet", () => {});
+        stream.pipe(parser);
+        return new Promise((res) => parser.on("finish", res));
+      }),
+      b.add("stream-xml with complex selector", async () => {
+        const stream = createReadStream(filePath);
+        const parser = new StreamParser();
+        parser.parser.onElement("LiveSet Track MidiClip", () => {});
         stream.pipe(parser);
         return new Promise((res) => parser.on("finish", res));
       }),

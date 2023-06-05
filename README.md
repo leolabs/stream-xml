@@ -34,11 +34,11 @@ import { StreamParser, SelectorParser } from "stream-xml";
 // with Node's streaming pipeline
 const streamParser = new StreamParser();
 
-streamParser.parser.onSelector("myTag", () => {
+streamParser.parser.onElement("myTag", () => {
   console.log("Encountered my tag!");
   // get attributes using: parser.attributes()
 });
-streamParser.parser.on(() => {
+streamParser.parser.onTextNode(() => {
   console.log("Encountered a text node");
   // get the content using: parser.textContent()
 });
@@ -57,7 +57,7 @@ import { Parser, SelectorParser } from "stream-xml";
 
 const parser = new Parser();
 
-parser.onSelector("myTag", () => {
+parser.onElement("myTag", () => {
   console.log("Encountered my tag!");
   // get attributes using: parser.attributes()
 });

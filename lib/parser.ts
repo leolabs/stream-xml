@@ -1,18 +1,26 @@
 import { decodeXML } from "entities";
 import { Test, parseSelector } from "./util/selector";
+import { isEqual } from "./util/is-equal";
 
 export type CallbackFn = (tagName: Uint8Array) => unknown;
+export type ElementCallbackFn = () => unknown;
 export type SelectorCallbackFn = () => unknown;
 export type TextCallbackFn = () => unknown;
 
 export type Attributes = Record<string, string | boolean>;
 
-interface Callback {
+interface AnyElementCallback {
   enter: CallbackFn;
   exit?: CallbackFn;
 }
 
-interface Selector {
+interface ElementCallback {
+  tagName: Uint8Array;
+  enter: SelectorCallbackFn;
+  exit?: SelectorCallbackFn;
+}
+
+interface SelectorCallback {
   test: Test;
   enter: SelectorCallbackFn;
   exit?: SelectorCallbackFn;
@@ -66,8 +74,6 @@ export interface Options {
 }
 
 export class Parser {
-  #callbacks: Callback[] = [];
-  #textNodeCallbacks: TextCallbackFn[] = [];
   #buffer: Uint8Array;
   /** position of the end of usable bytes */
   #bufferPos: number = 0;
@@ -80,11 +86,15 @@ export class Parser {
   #resetPos: number = 0;
 
   #textDecoder: TextDecoder;
+  #textEncoder = new TextEncoder();
 
   /** Keeps track of the current hierarchy of visited tags */
   #tagStack: Uint8Array[] = [];
 
-  #selectors: Selector[] = [];
+  #textNodeCallbacks: TextCallbackFn[] = [];
+  #anyElementCallbacks: AnyElementCallback[] = [];
+  #elementCallbacks: ElementCallback[] = [];
+  #selectorCallbacks: SelectorCallback[] = [];
 
   /**
    * Create a new Parser.
@@ -110,31 +120,47 @@ export class Parser {
    * @param enter - Function to call when the tag for tagName is opened
    * @param exit - Function to call when the tag for tagName is closed (optional)
    */
-  onElement(enter: CallbackFn, exit?: CallbackFn) {
-    this.#callbacks.push({
+  onAnyElement(enter: CallbackFn, exit?: CallbackFn) {
+    this.#anyElementCallbacks.push({
       enter,
       exit,
     });
   }
 
   /**
+   * Registers callback for when a given element is visited.
+   *
+   * @example
+   * // matches all TagName elements, regardless of their position
+   * onSelector("TagName", enterCallback, exitCallback)
    * @example
    * // matches all ChildTag elements in TagName elements
-   * onSelector("TagName ChildTag")
+   * onSelector("TagName ChildTag", enterCallback, exitCallback)
    * @example
    * // matches direct ChildTag descendants in TagName elements
-   * onSelector("TagName > ChildTag")
+   * onSelector("TagName > ChildTag", enterCallback, exitCallback)
    * @example
    * // matches multiple rules
-   * onSelector("TagName > ChildTag, OtherTag")
+   * onSelector("TagName > ChildTag, OtherTag", enterCallback, exitCallback)
    */
-  onSelector(
+  onElement(
     selector: string,
     enter: SelectorCallbackFn,
     exit?: SelectorCallbackFn
   ) {
+    // If we just want to match elements outside
+    // of context, push it onto this stack instead.
+    if (!selector.includes(" ")) {
+      this.#elementCallbacks.push({
+        tagName: this.#textEncoder.encode(selector),
+        enter,
+        exit,
+      });
+      return;
+    }
+
     const test = parseSelector(selector);
-    this.#selectors.push({
+    this.#selectorCallbacks.push({
       test,
       enter,
       exit,
@@ -142,25 +168,25 @@ export class Parser {
 
     // If this is the first selector,
     // start tracking all elements
-    if (this.#selectors.length === 1) {
-      this.onElement(
-        (_tagName) => {
-          //this.#tagStack.push(tagName);
+    if (this.#selectorCallbacks.length === 1) {
+      this.onAnyElement(
+        (tagName) => {
+          this.#tagStack.push(tagName);
 
-          for (const selector of this.#selectors) {
+          for (const selector of this.#selectorCallbacks) {
             if (selector.test(this.#tagStack)) {
               selector.enter();
             }
           }
         },
         () => {
-          for (const selector of this.#selectors) {
+          for (const selector of this.#selectorCallbacks) {
             if (selector.test(this.#tagStack)) {
               selector.exit?.();
             }
           }
 
-          //this.#tagStack.pop();
+          this.#tagStack.pop();
         }
       );
     }
@@ -431,18 +457,32 @@ export class Parser {
     enter: boolean,
     exit: boolean
   ) {
-    if (this.#callbacks.length === 0) {
+    if (
+      this.#anyElementCallbacks.length === 0 &&
+      this.#elementCallbacks.length === 0
+    ) {
       return;
     }
 
     const name = this.#buffer.subarray(nameStart, nameEnd);
 
-    for (const cb of this.#callbacks) {
+    for (const cb of this.#anyElementCallbacks) {
       if (enter) {
         cb.enter(name);
       }
       if (exit) {
         cb.exit?.(name);
+      }
+    }
+
+    for (const cb of this.#elementCallbacks) {
+      if (isEqual(name, cb.tagName)) {
+        if (enter) {
+          cb.enter();
+        }
+        if (exit) {
+          cb.exit?.();
+        }
       }
     }
   }
