@@ -1,11 +1,12 @@
 import { Mock, expect, test, vi } from "vitest";
-import { Parser } from "./parser";
+import { Attributes, Parser } from "./parser";
 import { isEqual } from "./util/is-equal";
 
-// todo: test quoting (special characters, escapes etc)
-
 /** Creates a tag mock that should get called each time a tag name is visited */
-const makeTagMock = (parser: Parser, tagName: string): Mock<[], void> => {
+const makeTagMock = (
+  parser: Parser,
+  tagName: string
+): Mock<[Attributes], void> => {
   const mock = vi.fn();
   const enc = new TextEncoder();
   const encoded = enc.encode(tagName);
@@ -13,6 +14,20 @@ const makeTagMock = (parser: Parser, tagName: string): Mock<[], void> => {
     if (isEqual(tag, encoded)) {
       mock(parser.attributes());
     }
+  });
+
+  return mock;
+};
+
+/** Creates a tag mock that should get called each time a tag name is visited */
+const makeSelectorMock = (
+  parser: Parser,
+  selector: string
+): Mock<[Attributes], void> => {
+  const mock = vi.fn();
+
+  parser.onSelector(selector, () => {
+    mock(parser.attributes());
   });
 
   return mock;
@@ -143,4 +158,36 @@ test("text nodes", async () => {
   expect(textNodeMock).toBeCalledTimes(2);
   expect(textNodeMock).toBeCalledWith("Hello,");
   expect(textNodeMock).toBeCalledWith("World!");
+});
+
+test("selectors", () => {
+  const xml = `
+    <RootTag>
+      <Child>
+        <Bar />
+      </Child>
+      <Other>
+        <Child />
+      </Other>
+      <Bar />
+      <Child>
+        <Child />
+      </Child>
+    </RootTag>
+    <Child />
+  `;
+
+  const p = new Parser();
+  const childMock = makeSelectorMock(p, "RootTag  > Child");
+  const barMock = makeSelectorMock(p, "RootTag  Bar");
+  const allChildMock = makeSelectorMock(p, "Child");
+  const multipleRulesMock = makeSelectorMock(p, "Child, RootTag Bar");
+
+  const enc = new TextEncoder();
+  p.parse(enc.encode(xml));
+
+  expect(childMock).toBeCalledTimes(2);
+  expect(barMock).toBeCalledTimes(2);
+  expect(allChildMock).toBeCalledTimes(5);
+  expect(multipleRulesMock).toBeCalledTimes(7);
 });

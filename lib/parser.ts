@@ -1,11 +1,21 @@
 import { decodeXML } from "entities";
+import { Test, parseSelector } from "./util/selector";
 
 export type CallbackFn = (tagName: Uint8Array) => unknown;
+export type SelectorCallbackFn = () => unknown;
 export type TextCallbackFn = () => unknown;
+
+export type Attributes = Record<string, string | boolean>;
 
 interface Callback {
   enter: CallbackFn;
   exit?: CallbackFn;
+}
+
+interface Selector {
+  test: Test;
+  enter: SelectorCallbackFn;
+  exit?: SelectorCallbackFn;
 }
 
 const TAG_START = "<".charCodeAt(0);
@@ -71,6 +81,11 @@ export class Parser {
 
   #textDecoder: TextDecoder;
 
+  /** Keeps track of the current hierarchy of visited tags */
+  #tagStack: Uint8Array[] = [];
+
+  #selectors: Selector[] = [];
+
   /**
    * Create a new Parser.
    *
@@ -88,11 +103,10 @@ export class Parser {
   }
 
   /**
-   * Register a callback for a certain tag name.
+   * Register a callback for when any element is visited.
    *
    * Use the `attributes()` method to access the attributes during the callback.
    *
-   * @param tagName - Name of the tag to register the callback for - case sensitive
    * @param enter - Function to call when the tag for tagName is opened
    * @param exit - Function to call when the tag for tagName is closed (optional)
    */
@@ -101,6 +115,55 @@ export class Parser {
       enter,
       exit,
     });
+  }
+
+  /**
+   * @example
+   * // matches all ChildTag elements in TagName elements
+   * onSelector("TagName ChildTag")
+   * @example
+   * // matches direct ChildTag descendants in TagName elements
+   * onSelector("TagName > ChildTag")
+   * @example
+   * // matches multiple rules
+   * onSelector("TagName > ChildTag, OtherTag")
+   */
+  onSelector(
+    selector: string,
+    enter: SelectorCallbackFn,
+    exit?: SelectorCallbackFn
+  ) {
+    const test = parseSelector(selector);
+    this.#selectors.push({
+      test,
+      enter,
+      exit,
+    });
+
+    // If this is the first selector,
+    // start tracking all elements
+    if (this.#selectors.length === 1) {
+      this.onElement(
+        (_tagName) => {
+          //this.#tagStack.push(tagName);
+
+          for (const selector of this.#selectors) {
+            if (selector.test(this.#tagStack)) {
+              selector.enter();
+            }
+          }
+        },
+        () => {
+          for (const selector of this.#selectors) {
+            if (selector.test(this.#tagStack)) {
+              selector.exit?.();
+            }
+          }
+
+          //this.#tagStack.pop();
+        }
+      );
+    }
   }
 
   /**
