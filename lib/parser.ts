@@ -144,6 +144,10 @@ export class Parser {
   }
 
   push(chunk: Uint8Array): void {
+    if (this.#aborted) {
+      return;
+    }
+
     // truncate working buffer if new buffer does not fit
     if (this.#bufferPos + chunk.length > this.#buffer.length) {
       if (
