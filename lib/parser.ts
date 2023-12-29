@@ -19,7 +19,6 @@ const RETURN = "\r".charCodeAt(0);
 const NEWLINE = "\n".charCodeAt(0);
 const EQUAL = "=".charCodeAt(0);
 const QUOTE = `"`.charCodeAt(0);
-const BACKSLASH = "\\".charCodeAt(0);
 
 const isWhitespace = (char: number) =>
   char === BLANK || char === TAB || char === RETURN || char === NEWLINE;
@@ -253,7 +252,7 @@ export class Parser {
           break;
         }
         case StateType.Quoted: {
-          if (char === QUOTE && lastChar != BACKSLASH) {
+          if (char === QUOTE) {
             this.setState(StateType.Attributes);
           }
           break;
@@ -357,7 +356,7 @@ export class Parser {
           break;
         }
         case "QUOTED_VALUE": {
-          if (char === QUOTE && this.#buffer[i - 1] !== BACKSLASH) {
+          if (char === QUOTE) {
             addValueAndReset(state.startPos, i);
           }
           break;
