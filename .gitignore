@@ -1,3 +1,9 @@
+# Large files
+bench/huge.xml
+bench/semi-huge.xml
+bench/large.xml
+results/
+
 # Logs
 logs
 *.log
