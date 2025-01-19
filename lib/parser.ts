@@ -18,10 +18,14 @@ const TAB = "\t".charCodeAt(0);
 const RETURN = "\r".charCodeAt(0);
 const NEWLINE = "\n".charCodeAt(0);
 const EQUAL = "=".charCodeAt(0);
-const QUOTE = `"`.charCodeAt(0);
+const DOUBLE_QUOTE = `"`.charCodeAt(0);
+const SINGLE_QUOTE = `'`.charCodeAt(0);
 
 const isWhitespace = (char: number) =>
   char === BLANK || char === TAB || char === RETURN || char === NEWLINE;
+
+const isQuote = (char: number) =>
+  char === SINGLE_QUOTE || char === DOUBLE_QUOTE;
 
 /**
  * Checks if two Uint8Arrays are equal
@@ -43,6 +47,12 @@ enum StateType {
   Closing = 6, // with startPos
   Quoted = 7, // with startPos & endPos
   TextNode = 8, // with startPos
+}
+
+enum OpeningQuoteType {
+  Unknown,
+  Single,
+  Double,
 }
 
 type AttrState =
@@ -78,6 +88,8 @@ export class Parser {
   #stateCommentChar: number = 0;
   /** Position of leftmost character we still care about */
   #resetPos: number = 0;
+
+  #lastOpeningQuoteType = OpeningQuoteType.Unknown;
 
   #textDecoder: TextDecoder;
   #textEncoder = new TextEncoder();
@@ -236,7 +248,11 @@ export class Parser {
             );
             this.#stateStartPos = i + 1;
             this.setState(StateType.TextNode);
-          } else if (char === QUOTE) {
+          } else if (isQuote(char)) {
+            this.#lastOpeningQuoteType =
+              char === SINGLE_QUOTE
+                ? OpeningQuoteType.Single
+                : OpeningQuoteType.Double;
             this.setState(StateType.Quoted);
           }
           break;
@@ -252,7 +268,16 @@ export class Parser {
           break;
         }
         case StateType.Quoted: {
-          if (char === QUOTE) {
+          if (this.#lastOpeningQuoteType === OpeningQuoteType.Unknown) {
+            throw new Error("In quotes, but opening quote type was not set");
+          }
+
+          if (
+            (this.#lastOpeningQuoteType === OpeningQuoteType.Single &&
+              char === SINGLE_QUOTE) ||
+            (this.#lastOpeningQuoteType === OpeningQuoteType.Double &&
+              char === DOUBLE_QUOTE)
+          ) {
             this.setState(StateType.Attributes);
           }
           break;
@@ -310,6 +335,8 @@ export class Parser {
 
     let state: AttrState = { type: "INIT" };
 
+    let lastOpeningQuoteType = OpeningQuoteType.Unknown;
+
     // parse attributes into object
     const attrs = {} as Record<string, string | boolean>;
 
@@ -348,7 +375,11 @@ export class Parser {
           break;
         }
         case "VALUE": {
-          if (i === state.startPos && char === QUOTE) {
+          if (i === state.startPos && isQuote(char)) {
+            lastOpeningQuoteType =
+              char === SINGLE_QUOTE
+                ? OpeningQuoteType.Single
+                : OpeningQuoteType.Double;
             state = { type: "QUOTED_VALUE", startPos: i + 1 };
           } else if (isWhitespace(char)) {
             addValueAndReset(state.startPos, i);
@@ -356,7 +387,16 @@ export class Parser {
           break;
         }
         case "QUOTED_VALUE": {
-          if (char === QUOTE) {
+          if (lastOpeningQuoteType === OpeningQuoteType.Unknown) {
+            throw new Error("In quotes, but opening quote type was not set");
+          }
+
+          if (
+            (lastOpeningQuoteType === OpeningQuoteType.Single &&
+              char === SINGLE_QUOTE) ||
+            (lastOpeningQuoteType === OpeningQuoteType.Double &&
+              char === DOUBLE_QUOTE)
+          ) {
             addValueAndReset(state.startPos, i);
           }
           break;

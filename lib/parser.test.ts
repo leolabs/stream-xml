@@ -109,7 +109,7 @@ test("tags without attributes", async () => {
 test("quoting", async () => {
   const xml = `
     <?xml something something ?>
-    <RootTag attr1="test > foo" attr2 />
+    <RootTag attr1="test > 'foo'" attr2='test "tag"' attr3='hello' attr4="world" attr5 />
   `;
 
   const rootMock = vi.fn();
@@ -121,8 +121,11 @@ test("quoting", async () => {
 
   expect(rootMock).toBeCalledTimes(1);
   expect(rootMock).toBeCalledWith({
-    attr1: "test > foo",
-    attr2: true,
+    attr1: "test > 'foo'",
+    attr2: 'test "tag"',
+    attr3: "hello",
+    attr4: "world",
+    attr5: true,
   });
 });
 
